@@ -1,0 +1,123 @@
+import express from 'express';
+import { DataStore } from '../config/store.js';
+
+const router = express.Router();
+
+// GET /api/auth/status - Check if shopkeeper is registered on this device/server
+router.get('/status', async (req, res) => {
+  try {
+    const merchant = await DataStore.getRegisteredMerchant();
+    res.json({
+      success: true,
+      isRegistered: !!merchant,
+      merchant: merchant || null,
+    });
+  } catch (error) {
+    console.error('Error checking auth status:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// POST /api/auth/register - Register Suq Owner with full information
+router.post('/register', async (req, res) => {
+  try {
+    const {
+      fullName,
+      phoneNumber,
+      password,
+      nationalIdOrFayda,
+      shopName,
+      businessType,
+      tinNumber,
+      tradeLicenseNo,
+      region,
+      city,
+      subcityOrZone,
+      woreda,
+      specificLocation,
+      telebirrMerchantId,
+      telebirrPhone,
+      primaryBank,
+      bankAccountNumber
+    } = req.body;
+
+    if (!fullName || !fullName.trim()) {
+      return res.status(400).json({ success: false, message: 'Full Name of the shop owner is required' });
+    }
+    if (!phoneNumber || !phoneNumber.trim()) {
+      return res.status(400).json({ success: false, message: 'Valid phone number is required (+251 9... / 09...)' });
+    }
+    if (!shopName || !shopName.trim()) {
+      return res.status(400).json({ success: false, message: 'Shop or cafe name is required' });
+    }
+    if (!password || password.trim().length < 4) {
+      return res.status(400).json({ success: false, message: 'Security PIN or password must be at least 4 digits' });
+    }
+
+    const merchant = await DataStore.registerMerchant(req.body);
+
+    res.status(201).json({
+      success: true,
+      message: 'Suq Owner registered successfully!',
+      merchant,
+    });
+  } catch (error) {
+    console.error('Registration failed:', error);
+    res.status(400).json({
+      success: false,
+      message: error.message || 'Registration failed'
+    });
+  }
+});
+
+// POST /api/auth/login - Owner login
+router.post('/login', async (req, res) => {
+  try {
+    const { phoneNumber, password } = req.body;
+    if (!phoneNumber || !password) {
+      return res.status(400).json({ success: false, message: 'Phone number and password/PIN are required' });
+    }
+
+    const merchant = await DataStore.loginMerchant({ phoneNumber, password });
+    res.json({
+      success: true,
+      message: 'Welcome back!',
+      merchant,
+    });
+  } catch (error) {
+    console.error('Login failed:', error);
+    res.status(401).json({ success: false, message: error.message });
+  }
+});
+
+// PUT /api/auth/profile - Update merchant profile
+router.put('/profile', async (req, res) => {
+  try {
+    const updated = await DataStore.updateMerchantProfile(req.body);
+    res.json({
+      success: true,
+      message: 'Merchant profile updated',
+      merchant: updated,
+    });
+  } catch (error) {
+    console.error('Update profile failed:', error);
+    res.status(400).json({ success: false, message: error.message });
+  }
+});
+
+// POST /api/auth/reset - Reset all products, sales, and merchant to fresh empty state
+router.post('/reset', async (req, res) => {
+  try {
+    const fresh = await DataStore.resetAllData();
+    res.json({
+      success: true,
+      message: 'SuqSync database successfully reset to clean empty state',
+      data: fresh,
+    });
+  } catch (error) {
+    console.error('Reset failed:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+export default router;

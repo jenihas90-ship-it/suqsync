@@ -1,0 +1,23 @@
+{
+  "name": "suqsync-workspace",
+  "version": "1.0.0",
+  "description": "SuqSync - Lightweight MERN Inventory & Sales Tracker tailored for Ethiopian SMEs (Innobiz-K Incubation Pitch)",
+  "scripts": {
+    "dev:server": "cd server && npm start",
+    "dev:client": "cd client && npm run dev",
+    "build:client": "cd client && npm run build",
+    "seed": "cd server && npm run seed"
+  },
+  "keywords": [
+    "suqsync",
+    "ethiopia",
+    "pos",
+    "telebirr",
+    "cbe-birr",
+    "amharic",
+    "oromiffa",
+    "mern"
+  ],
+  "author": "SuqSync Team",
+  "license": "MIT"
+}

@@ -1,0 +1,70 @@
+{
+  "products": [
+    {
+      "_id": "prod_1792785018896",
+      "name": "Soofii",
+      "price": 80,
+      "stockQty": 19,
+      "category": "Beverages",
+      "unit": "bottle",
+      "createdAt": "2026-10-23T19:50:18.896Z",
+      "updatedAt": "2026-10-23T19:51:29.215Z"
+    },
+    {
+      "_id": "prod_1792784933564",
+      "name": "Buna",
+      "price": 25,
+      "stockQty": 100,
+      "category": "Grains & Spices",
+      "unit": "pcs",
+      "createdAt": "2026-10-23T19:48:53.564Z",
+      "updatedAt": "2026-10-23T19:48:53.564Z"
+    },
+    {
+      "_id": "prod_1792784853190",
+      "name": "Injera",
+      "price": 140,
+      "stockQty": 50,
+      "category": "Food",
+      "unit": "pcs",
+      "createdAt": "2026-10-23T19:47:33.190Z",
+      "updatedAt": "2026-10-23T19:47:33.190Z"
+    }
+  ],
+  "sales": [
+    {
+      "_id": "sale_1792785089215",
+      "productId": "prod_1792785018896",
+      "productName": "Soofii",
+      "quantitySold": 11,
+      "unitPrice": 80,
+      "totalAmount": 880,
+      "paymentMethod": "CBE",
+      "createdAt": "2026-10-23T19:51:29.215Z"
+    }
+  ],
+  "merchant": {
+    "_id": "user_1792784786781",
+    "fullName": "Ayisha",
+    "phoneNumber": "+251 982646287",
+    "passwordHash": "5d899f250ce337ac39c6d17db088fd4f4f4467acf5367d4473dc75a2d81d12d0",
+    "nationalIdOrFayda": "564378654332321",
+    "shopName": "Ayisha cafe",
+    "businessType": "Retail Kiosk (Suq)",
+    "tinNumber": "",
+    "tradeLicenseNo": "",
+    "region": "Addis Ababa",
+    "city": "Addis Ababa",
+    "subcityOrZone": "Bole Subcity",
+    "woreda": "Woreda 03",
+    "specificLocation": "",
+    "telebirrMerchantId": "",
+    "telebirrPhone": "+251 982646287",
+    "primaryBank": "CBE",
+    "bankAccountNumber": "",
+    "pilotShopId": "SUQ-ETH-787",
+    "isRegistered": true,
+    "createdAt": "2026-10-23T19:46:26.781Z",
+    "updatedAt": "2026-10-23T19:46:26.781Z"
+  }
+}
