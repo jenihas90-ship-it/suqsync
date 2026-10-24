@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import QRCode from 'qrcode';
 import { 
   Store, 
   User, 
@@ -13,7 +14,9 @@ import {
   ShieldCheck,
   RefreshCw,
   RotateCcw,
-  LogOut
+  LogOut,
+  QrCode,
+  Copy
 } from 'lucide-react';
 
 export default function StoreSettingsModal({ 
@@ -39,12 +42,42 @@ export default function StoreSettingsModal({
   });
 
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [syncQrUrl, setSyncQrUrl] = useState('');
+  const [syncLinkCopied, setSyncLinkCopied] = useState(false);
+  const [showSyncView, setShowSyncView] = useState(false);
 
   useEffect(() => {
     if (storeProfile) {
       setFormData(storeProfile);
     }
   }, [storeProfile, isOpen]);
+
+  const handleGenerateMobileSync = async () => {
+    try {
+      const localMerchantStr = localStorage.getItem('suqsync_local_merchant') || localStorage.getItem('suqsync_auth_user');
+      const merchant = localMerchantStr ? JSON.parse(localMerchantStr) : storeProfile;
+      const payload = {
+        merchant: {
+          ...merchant,
+          shopName: formData.storeName || merchant.shopName,
+          fullName: formData.ownerName || merchant.fullName,
+          phoneNumber: formData.phone || merchant.phoneNumber,
+          telebirrMerchantId: formData.telebirrMerchantId || merchant.telebirrMerchantId,
+          bankAccountNumber: formData.cbeAccount || merchant.bankAccountNumber,
+          city: formData.city || merchant.city,
+        },
+        products: products || []
+      };
+      const jsonStr = JSON.stringify(payload);
+      const encoded = btoa(encodeURIComponent(jsonStr));
+      const syncUrl = `${window.location.origin}${window.location.pathname}#sync=${encoded}`;
+      const qrDataUrl = await QRCode.toDataURL(syncUrl, { width: 260, margin: 1 });
+      setSyncQrUrl(qrDataUrl);
+      setShowSyncView(true);
+    } catch (err) {
+      console.error('Failed to generate sync QR:', err);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -298,6 +331,83 @@ export default function StoreSettingsModal({
               )}
             </button>
           </div>
+
+          {/* Connect & Sync to Android Phone */}
+          <div className="pt-2">
+            <button
+              type="button"
+              onClick={handleGenerateMobileSync}
+              className="w-full py-2.5 px-3 rounded-xl bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-900 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
+            >
+              <Smartphone className="w-4 h-4 text-sky-600" />
+              <span>Connect & Sync with Android Phone (ወደ ስልክ ማገናኛ QR)</span>
+            </button>
+          </div>
+
+          {/* Sync QR Modal / View */}
+          {showSyncView && (
+            <div className="p-4 bg-sky-50 border border-sky-200 rounded-2xl space-y-3 animate-in fade-in">
+              <div className="flex items-center justify-between">
+                <span className="font-extrabold text-sky-950 text-xs flex items-center gap-1.5">
+                  <Smartphone className="w-4 h-4 text-sky-600" />
+                  <span>Scan with Android Camera (ወደ ስልክ ማስተላለፊያ)</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowSyncView(false)}
+                  className="text-slate-400 hover:text-slate-600 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {syncQrUrl && (
+                <div className="flex flex-col items-center justify-center p-3 bg-white rounded-xl border border-sky-100 shadow-sm">
+                  <img src={syncQrUrl} alt="Mobile Sync QR Code" className="w-48 h-48 rounded-lg" />
+                  <p className="text-[11px] text-slate-600 mt-2 text-center max-w-xs font-medium">
+                    Point your Android camera at this QR code to instantly sync your shop & sign in on mobile.
+                  </p>
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  const localMerchantStr = localStorage.getItem('suqsync_local_merchant') || localStorage.getItem('suqsync_auth_user');
+                  const merchant = localMerchantStr ? JSON.parse(localMerchantStr) : storeProfile;
+                  const payload = {
+                    merchant: {
+                      ...merchant,
+                      shopName: formData.storeName || merchant.shopName,
+                      fullName: formData.ownerName || merchant.fullName,
+                      phoneNumber: formData.phone || merchant.phoneNumber,
+                      telebirrMerchantId: formData.telebirrMerchantId || merchant.telebirrMerchantId,
+                      bankAccountNumber: formData.cbeAccount || merchant.bankAccountNumber,
+                      city: formData.city || merchant.city,
+                    },
+                    products: products || []
+                  };
+                  const syncUrl = `${window.location.origin}${window.location.pathname}#sync=${btoa(encodeURIComponent(JSON.stringify(payload)))}`;
+                  navigator.clipboard.writeText(syncUrl);
+                  setSyncLinkCopied(true);
+                  setTimeout(() => setSyncLinkCopied(false), 2500);
+                }}
+                className="w-full py-2.5 px-3 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm"
+              >
+                {syncLinkCopied ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-amber-300" />
+                    <span>Sync Link Copied! Send to Telegram / WhatsApp</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>Copy Sync Link (for Telegram / WhatsApp)</span>
+                  </>
+                )}
+              </button>
+            </div>
+          )}
 
           {/* Sign Out / Lock Store */}
           {onLogout && (

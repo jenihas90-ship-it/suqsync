@@ -43,6 +43,8 @@ export default function RegistrationModal({
   const [loginIdentifier, setLoginIdentifier] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showSyncInput, setShowSyncInput] = useState(false);
+  const [syncInputVal, setSyncInputVal] = useState('');
 
   // Forgot password form state
   const [forgotIdentifier, setForgotIdentifier] = useState('');
@@ -269,15 +271,15 @@ export default function RegistrationModal({
             </div>
           </div>
 
-          {/* Mode Switcher Tabs (if an owner is already registered) */}
-          {isOwnerRegistered && mode !== 'forgot' && (
-            <div className="mt-4 flex bg-slate-950/50 p-1 rounded-xl border border-white/15 max-w-sm">
+          {/* Mode Switcher Tabs (ALWAYS visible on Android & all mobile screens) */}
+          {mode !== 'forgot' && (
+            <div className="mt-4 flex bg-slate-950/60 p-1 rounded-2xl border border-white/20 w-full max-w-sm shadow-inner">
               <button
                 type="button"
                 onClick={() => { setMode('login'); setErrorMsg(''); setResetSuccessMsg(''); }}
-                className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-extrabold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                className={`flex-1 py-2 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                   mode === 'login'
-                    ? 'bg-amber-400 text-slate-950 shadow-md'
+                    ? 'bg-amber-400 text-slate-950 shadow-md scale-[1.02]'
                     : 'text-slate-300 hover:text-white'
                 }`}
               >
@@ -287,9 +289,9 @@ export default function RegistrationModal({
               <button
                 type="button"
                 onClick={() => { setMode('register'); setErrorMsg(''); setResetSuccessMsg(''); setStep(1); }}
-                className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-extrabold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                className={`flex-1 py-2 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                   mode === 'register'
-                    ? 'bg-amber-400 text-slate-950 shadow-md'
+                    ? 'bg-amber-400 text-slate-950 shadow-md scale-[1.02]'
                     : 'text-slate-300 hover:text-white'
                 }`}
               >
@@ -436,6 +438,59 @@ export default function RegistrationModal({
                 <span>
                   Once signed in, you will stay logged into your shop on this device until you explicitly sign out.
                 </span>
+              </div>
+
+              {/* Sync from PC / Mobile Link */}
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowSyncInput(!showSyncInput)}
+                  className="text-emerald-700 hover:text-emerald-800 text-[11px] font-bold flex items-center justify-center gap-1.5 cursor-pointer w-full py-1 hover:underline"
+                >
+                  <Smartphone className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Already have your shop on PC? Tap here to sync to mobile</span>
+                </button>
+                {showSyncInput && (
+                  <div className="mt-2 p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-2 animate-in fade-in">
+                    <p className="text-[11px] text-slate-700 leading-relaxed">
+                      On your PC, open <b>Settings ⚙️ ➔ Connect with Android Phone</b>, then copy the sync link or scan the QR code with your phone camera:
+                    </p>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Paste sync link or code here..."
+                        value={syncInputVal}
+                        onChange={e => setSyncInputVal(e.target.value)}
+                        className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-mono"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          try {
+                            const raw = syncInputVal.trim();
+                            if (!raw) return;
+                            const hashPart = raw.includes('#sync=') ? raw.split('#sync=')[1] : raw;
+                            const decoded = decodeURIComponent(atob(hashPart));
+                            const syncData = JSON.parse(decoded);
+                            if (syncData && syncData.merchant) {
+                              localStorage.setItem('suqsync_local_merchant', JSON.stringify(syncData.merchant));
+                              localStorage.setItem('suqsync_auth_user', JSON.stringify(syncData.merchant));
+                              if (syncData.products) {
+                                localStorage.setItem('suqsync_local_products', JSON.stringify(syncData.products));
+                              }
+                              window.location.reload();
+                            }
+                          } catch (err) {
+                            setErrorMsg('Invalid sync link or code. Please copy the link from your PC Settings.');
+                          }
+                        }}
+                        className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold cursor-pointer shrink-0"
+                      >
+                        Sync Shop
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
             </div>
@@ -928,16 +983,14 @@ export default function RegistrationModal({
                     <span>Back</span>
                   </button>
                 ) : (
-                  isOwnerRegistered && (
-                    <button
-                      type="button"
-                      onClick={() => { setMode('login'); setErrorMsg(''); }}
-                      className="py-2.5 px-3 rounded-xl text-emerald-700 hover:bg-emerald-50 font-bold text-xs flex items-center gap-1 transition-all cursor-pointer"
-                    >
-                      <LogIn className="w-4 h-4" />
-                      <span>Already Registered? Sign In</span>
-                    </button>
-                  )
+                  <button
+                    type="button"
+                    onClick={() => { setMode('login'); setErrorMsg(''); }}
+                    className="py-2.5 px-3 rounded-xl text-emerald-700 hover:bg-emerald-50 font-bold text-xs flex items-center gap-1 transition-all cursor-pointer"
+                  >
+                    <LogIn className="w-4 h-4" />
+                    <span>Already Registered? Sign In</span>
+                  </button>
                 )}
               </div>
 

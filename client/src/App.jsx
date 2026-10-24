@@ -190,7 +190,54 @@ export default function App() {
   };
 
   useEffect(() => {
-    loadData();
+    // Check if mobile device opened via sync link (#sync=...)
+    const checkMobileSync = () => {
+      try {
+        const hash = window.location.hash;
+        if (hash && hash.startsWith('#sync=')) {
+          const encoded = hash.replace('#sync=', '');
+          const decoded = decodeURIComponent(atob(encoded));
+          const syncData = JSON.parse(decoded);
+          if (syncData && syncData.merchant) {
+            const m = syncData.merchant;
+            localStorage.setItem('suqsync_local_merchant', JSON.stringify(m));
+            localStorage.setItem('suqsync_auth_user', JSON.stringify(m));
+            if (syncData.products && Array.isArray(syncData.products)) {
+              localStorage.setItem('suqsync_local_products', JSON.stringify(syncData.products));
+              setProducts(syncData.products);
+            }
+            setCurrentUser(m);
+            setIsAuthenticated(true);
+            setIsOwnerRegistered(true);
+            setRegisteredMerchantMeta(m);
+            setShowAuthModal(false);
+            setStoreProfile({
+              storeName: m.shopName,
+              ownerName: m.fullName,
+              cashierName: (m.fullName || 'Cashier').split(' ')[0],
+              phone: m.phoneNumber,
+              telebirrMerchantId: m.telebirrMerchantId || '984321',
+              cbeAccount: m.bankAccountNumber || '1000123456789',
+              city: m.city || 'Addis Ababa',
+              subcity: `${m.subcityOrZone || 'Bole'}, ${m.woreda || 'Woreda 03'}`,
+              pilotShopId: m.pilotShopId || 'SUQ-ETH-001',
+              isRegistered: true,
+            });
+            window.location.hash = '';
+            showToast(`🎉 Connected to ${m.shopName}! Welcome, ${m.fullName}!`);
+            return true;
+          }
+        }
+      } catch (err) {
+        console.error('Failed to parse mobile sync hash:', err);
+      }
+      return false;
+    };
+
+    const synced = checkMobileSync();
+    if (!synced) {
+      loadData();
+    }
     const interval = setInterval(loadData, 25000);
     return () => clearInterval(interval);
   }, []);
