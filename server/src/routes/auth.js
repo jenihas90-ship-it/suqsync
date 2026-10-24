@@ -10,6 +10,9 @@ router.get('/status', async (req, res) => {
     res.json({
       success: true,
       isRegistered: !!merchant,
+      registeredShopName: merchant ? merchant.shopName : null,
+      registeredOwnerName: merchant ? merchant.fullName : null,
+      pilotShopId: merchant ? merchant.pilotShopId : null,
       merchant: merchant || null,
     });
   } catch (error) {
@@ -70,18 +73,33 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// POST /api/auth/login - Owner login
+// POST /api/auth/login - Owner login by Name or Phone number & Password
 router.post('/login', async (req, res) => {
   try {
-    const { phoneNumber, password } = req.body;
-    if (!phoneNumber || !password) {
-      return res.status(400).json({ success: false, message: 'Phone number and password/PIN are required' });
+    const { identifier, phoneNumber, fullName, name, password } = req.body;
+    const loginIdentifier = identifier || fullName || name || phoneNumber;
+
+    if (!loginIdentifier || !String(loginIdentifier).trim()) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Owner name or phone number is required to sign in' 
+      });
+    }
+    if (!password || !String(password).trim()) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Security PIN or password is required' 
+      });
     }
 
-    const merchant = await DataStore.loginMerchant({ phoneNumber, password });
+    const merchant = await DataStore.loginMerchant({ 
+      identifier: String(loginIdentifier).trim(), 
+      password: String(password).trim() 
+    });
+
     res.json({
       success: true,
-      message: 'Welcome back!',
+      message: `Welcome back, ${merchant.fullName}!`,
       merchant,
     });
   } catch (error) {

@@ -179,16 +179,35 @@ export const DataStore = {
     return safeUser;
   },
 
-  async loginMerchant({ phoneNumber, password }) {
+  async loginMerchant({ identifier, phoneNumber, fullName, password }) {
+    const rawId = (identifier || fullName || phoneNumber || '').trim();
+    if (!rawId || !password) {
+      throw new Error('Owner name or phone number and PIN/password are required');
+    }
+
     const passwordHash = hashPassword(password);
+    const cleanId = rawId.toLowerCase();
+    const cleanDigits = rawId.replace(/\D/g, '');
 
     if (getMongoStatus().connected) {
-      const user = await User.findOne({ phoneNumber: phoneNumber.trim() });
+      const escapedQuery = cleanId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const conditions = [
+        { fullName: { $regex: new RegExp(`^${escapedQuery}$`, 'i') } },
+        { phoneNumber: rawId },
+        { phoneNumber: cleanId }
+      ];
+
+      if (cleanDigits.length >= 8) {
+        const last8 = cleanDigits.slice(-8);
+        conditions.push({ phoneNumber: { $regex: new RegExp(`${last8}$`) } });
+      }
+
+      const user = await User.findOne({ $or: conditions });
       if (!user) {
-        throw new Error('Merchant account not found with this phone number');
+        throw new Error(`No registered owner found matching "${rawId}". Please check your name or phone number.`);
       }
       if (user.passwordHash !== passwordHash) {
-        throw new Error('Invalid PIN or password');
+        throw new Error('Invalid security PIN or password. Please try again.');
       }
       const { passwordHash: _, ...safeUser } = user.toObject();
       return safeUser;
@@ -198,14 +217,25 @@ export const DataStore = {
     if (!data.merchant) {
       throw new Error('No registered suq owner found. Please register first.');
     }
-    if (data.merchant.phoneNumber !== phoneNumber.trim()) {
-      throw new Error('Phone number does not match registered owner');
-    }
-    if (data.merchant.passwordHash !== passwordHash) {
-      throw new Error('Invalid PIN or password');
+
+    const m = data.merchant;
+    const mName = (m.fullName || '').trim().toLowerCase();
+    const mPhone = (m.phoneNumber || '').trim().toLowerCase();
+    const mDigits = mPhone.replace(/\D/g, '');
+
+    const nameMatches = mName === cleanId;
+    const phoneMatches = mPhone === cleanId ||
+                         (cleanDigits.length >= 8 && mDigits.endsWith(cleanDigits.slice(-8)));
+
+    if (!nameMatches && !phoneMatches) {
+      throw new Error(`Owner "${rawId}" not found. Please check your registered name or phone number.`);
     }
 
-    const { passwordHash: _, ...safeUser } = data.merchant;
+    if (m.passwordHash !== passwordHash) {
+      throw new Error('Invalid security PIN or password. Please try again.');
+    }
+
+    const { passwordHash: _, ...safeUser } = m;
     return safeUser;
   },
 

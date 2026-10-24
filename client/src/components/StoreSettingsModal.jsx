@@ -12,7 +12,8 @@ import {
   Check, 
   ShieldCheck,
   RefreshCw,
-  RotateCcw
+  RotateCcw,
+  LogOut
 } from 'lucide-react';
 
 export default function StoreSettingsModal({ 
@@ -21,6 +22,7 @@ export default function StoreSettingsModal({
   storeProfile, 
   onSaveProfile, 
   onResetData,
+  onLogout,
   products, 
   sales, 
   t 
@@ -296,6 +298,23 @@ export default function StoreSettingsModal({
               )}
             </button>
           </div>
+
+          {/* Sign Out / Lock Store */}
+          {onLogout && (
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onLogout();
+                }}
+                className="w-full py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+              >
+                <LogOut className="w-3.5 h-3.5 text-slate-500" />
+                <span>Sign Out / Lock Store (መውጫ)</span>
+              </button>
+            </div>
+          )}
 
           {/* Reset App Button */}
           <div className="pt-2 border-t border-slate-100">

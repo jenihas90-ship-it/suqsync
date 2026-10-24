@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Lock } from 'lucide-react';
 import Navbar from './components/Navbar';
 import POS from './components/POS';
 import Inventory from './components/Inventory';
@@ -21,6 +22,7 @@ import {
   checkServerHealth,
   checkAuthStatus,
   registerMerchant,
+  loginMerchant,
   updateMerchantProfileApi
 } from './api';
 
@@ -48,10 +50,25 @@ export default function App() {
   const [lastCompletedSale, setLastCompletedSale] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
 
-  // Store Profile & Registered Owner State
+  // Store Profile & Registered Owner Metadata
   const [storeProfile, setStoreProfile] = useState(DEFAULT_STORE_PROFILE);
   const [isOwnerRegistered, setIsOwnerRegistered] = useState(false);
-  const [showRegistrationModal, setShowRegistrationModal] = useState(false);
+  const [registeredMerchantMeta, setRegisteredMerchantMeta] = useState(null);
+
+  // Authentication & Session State
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    return !!localStorage.getItem('suqsync_auth_user');
+  });
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem('suqsync_auth_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authMode, setAuthMode] = useState('login'); // 'login' or 'register'
 
   // Active SaaS tier
   const [currentPlan, setCurrentPlan] = useState('Basic');
@@ -96,26 +113,72 @@ export default function App() {
       setDashboardData(dash);
       setServerStatus(health);
 
-      if (auth && auth.isRegistered && auth.merchant) {
-        setIsOwnerRegistered(true);
-        setShowRegistrationModal(false);
-        setStoreProfile({
-          storeName: auth.merchant.shopName,
-          ownerName: auth.merchant.fullName,
-          cashierName: auth.merchant.fullName.split(' ')[0] || 'Cashier',
-          phone: auth.merchant.phoneNumber,
-          telebirrMerchantId: auth.merchant.telebirrMerchantId || '984321',
-          cbeAccount: auth.merchant.bankAccountNumber || '1000123456789',
-          city: auth.merchant.city || 'Addis Ababa',
-          subcity: `${auth.merchant.subcityOrZone || 'Bole'}, ${auth.merchant.woreda || 'Woreda 03'}`,
-          pilotShopId: auth.merchant.pilotShopId || 'SUQ-ETH-001',
-          isRegistered: true,
-        });
-      } else {
-        setIsOwnerRegistered(false);
+      const hasRegistered = !!(auth && auth.isRegistered);
+      setIsOwnerRegistered(hasRegistered);
+      if (auth && auth.merchant) {
+        setRegisteredMerchantMeta(auth.merchant);
+      }
+
+      // Check current browser local session
+      const savedUserStr = localStorage.getItem('suqsync_auth_user');
+      let sessionUser = null;
+      if (savedUserStr) {
+        try {
+          sessionUser = JSON.parse(savedUserStr);
+        } catch {
+          sessionUser = null;
+        }
+      }
+
+      if (!hasRegistered) {
+        // First-time installation: Owner has NEVER registered yet!
+        setIsAuthenticated(false);
+        setCurrentUser(null);
+        localStorage.removeItem('suqsync_auth_user');
         setStoreProfile(DEFAULT_STORE_PROFILE);
-        // Prompt first-time owner registration when app is brand new
-        setShowRegistrationModal(true);
+        setAuthMode('register');
+        setShowAuthModal(true);
+      } else {
+        // Owner has ALREADY registered in backend!
+        if (sessionUser) {
+          // Has active authenticated session
+          setIsAuthenticated(true);
+          setCurrentUser(sessionUser);
+          setShowAuthModal(false);
+          setStoreProfile({
+            storeName: sessionUser.shopName || auth.merchant?.shopName || 'SuqSync Store',
+            ownerName: sessionUser.fullName || auth.merchant?.fullName || 'Owner',
+            cashierName: (sessionUser.fullName || auth.merchant?.fullName || 'Cashier').split(' ')[0],
+            phone: sessionUser.phoneNumber || auth.merchant?.phoneNumber,
+            telebirrMerchantId: sessionUser.telebirrMerchantId || auth.merchant?.telebirrMerchantId || '984321',
+            cbeAccount: sessionUser.bankAccountNumber || auth.merchant?.bankAccountNumber || '1000123456789',
+            city: sessionUser.city || auth.merchant?.city || 'Addis Ababa',
+            subcity: `${sessionUser.subcityOrZone || 'Bole'}, ${sessionUser.woreda || 'Woreda 03'}`,
+            pilotShopId: sessionUser.pilotShopId || auth.merchant?.pilotShopId || 'SUQ-ETH-001',
+            isRegistered: true,
+          });
+        } else {
+          // Owner is registered, but NO active signed-in session in this browser!
+          // They DO NOT have to register again! They must SIGN IN with their name and password!
+          setIsAuthenticated(false);
+          setCurrentUser(null);
+          setAuthMode('login');
+          setShowAuthModal(true);
+          if (auth.merchant) {
+            setStoreProfile({
+              storeName: auth.merchant.shopName,
+              ownerName: auth.merchant.fullName,
+              cashierName: auth.merchant.fullName.split(' ')[0] || 'Cashier',
+              phone: auth.merchant.phoneNumber,
+              telebirrMerchantId: auth.merchant.telebirrMerchantId || '984321',
+              cbeAccount: auth.merchant.bankAccountNumber || '1000123456789',
+              city: auth.merchant.city || 'Addis Ababa',
+              subcity: `${auth.merchant.subcityOrZone || 'Bole'}, ${auth.merchant.woreda || 'Woreda 03'}`,
+              pilotShopId: auth.merchant.pilotShopId || 'SUQ-ETH-001',
+              isRegistered: true,
+            });
+          }
+        }
       }
     } catch (err) {
       console.error('Data load error:', err);
@@ -131,10 +194,39 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
+  // Handler: Returning Owner Sign In with Name & Password
+  const handleLoginOwner = async ({ identifier, password }) => {
+    const loggedIn = await loginMerchant({ identifier, password });
+    localStorage.setItem('suqsync_auth_user', JSON.stringify(loggedIn));
+    setCurrentUser(loggedIn);
+    setIsAuthenticated(true);
+    setIsOwnerRegistered(true);
+    setRegisteredMerchantMeta(loggedIn);
+    setShowAuthModal(false);
+    setStoreProfile({
+      storeName: loggedIn.shopName,
+      ownerName: loggedIn.fullName,
+      cashierName: loggedIn.fullName.split(' ')[0] || 'Cashier',
+      phone: loggedIn.phoneNumber,
+      telebirrMerchantId: loggedIn.telebirrMerchantId || '984321',
+      cbeAccount: loggedIn.bankAccountNumber || '1000123456789',
+      city: loggedIn.city || 'Addis Ababa',
+      subcity: `${loggedIn.subcityOrZone || 'Bole'}, ${loggedIn.woreda || 'Woreda 03'}`,
+      pilotShopId: loggedIn.pilotShopId || 'SUQ-ETH-001',
+      isRegistered: true,
+    });
+    showToast(`👋 Welcome back, ${loggedIn.fullName}!`);
+  };
+
   // Handler: First-time Suq Owner Registration
   const handleRegisterOwner = async (registrationPayload) => {
     const registered = await registerMerchant(registrationPayload);
+    localStorage.setItem('suqsync_auth_user', JSON.stringify(registered));
+    setCurrentUser(registered);
+    setIsAuthenticated(true);
     setIsOwnerRegistered(true);
+    setRegisteredMerchantMeta(registered);
+    setShowAuthModal(false);
     setStoreProfile({
       storeName: registered.shopName,
       ownerName: registered.fullName,
@@ -149,6 +241,16 @@ export default function App() {
     });
     showToast(`🎉 Registration Complete! Pilot ID: ${registered.pilotShopId}`);
     setActiveTab('inventory'); // Navigate owner directly to add their first product!
+  };
+
+  // Handler: Sign Out / Lock Store
+  const handleLogout = () => {
+    localStorage.removeItem('suqsync_auth_user');
+    setIsAuthenticated(false);
+    setCurrentUser(null);
+    setAuthMode('login');
+    setShowAuthModal(true);
+    showToast('Signed out safely. Please sign in to resume.', 'info');
   };
 
   const handleSaveProfile = async (newProfile) => {
@@ -178,12 +280,17 @@ export default function App() {
       const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
       await fetch(`${API_BASE}/api/auth/reset`, { method: 'POST' });
       localStorage.removeItem('suqsync_store_profile');
+      localStorage.removeItem('suqsync_auth_user');
+      setIsAuthenticated(false);
+      setCurrentUser(null);
       setProducts([]);
       setDashboardData(null);
       setStoreProfile(DEFAULT_STORE_PROFILE);
       setIsOwnerRegistered(false);
+      setRegisteredMerchantMeta(null);
       setShowSettingsModal(false);
-      setShowRegistrationModal(true);
+      setAuthMode('register');
+      setShowAuthModal(true);
       setActiveTab('pos');
       showToast('SuqSync reset to fresh Day 1 state');
     } catch (err) {
@@ -346,12 +453,41 @@ export default function App() {
         onOpenPitchDeck={() => setShowPitchDeckModal(true)}
         onOpenPricing={() => setShowPricingModal(true)}
         onOpenSettings={() => setShowSettingsModal(true)}
+        onOpenAuth={() => {
+          setAuthMode(isOwnerRegistered ? 'login' : 'register');
+          setShowAuthModal(true);
+        }}
+        onLogout={handleLogout}
+        isAuthenticated={isAuthenticated}
         storeProfile={storeProfile}
       />
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-6xl w-full mx-auto p-3 sm:p-4 md:p-6 pb-20">
-        {isLoading && products.length === 0 && !dashboardData ? (
+        {!isAuthenticated ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center px-4">
+            <div className="w-16 h-16 rounded-3xl bg-slate-800 border border-slate-700 flex items-center justify-center text-amber-400 mb-4 shadow-xl">
+              <Lock className="w-8 h-8" />
+            </div>
+            <h2 className="text-xl font-black text-slate-800">
+              {isOwnerRegistered ? 'SuqSync Store is Locked' : 'SuqSync Setup Required'}
+            </h2>
+            <p className="text-xs text-slate-500 max-w-sm mt-1">
+              {isOwnerRegistered 
+                ? 'Please sign in with your registered Name and Password to access your POS, stock, and daily sales.'
+                : 'Please complete the first-time owner registration to launch your digital store.'}
+            </p>
+            <button
+              onClick={() => {
+                setAuthMode(isOwnerRegistered ? 'login' : 'register');
+                setShowAuthModal(true);
+              }}
+              className="mt-5 py-2.5 px-6 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-lg shadow-emerald-600/30 transition-all cursor-pointer"
+            >
+              {isOwnerRegistered ? 'Sign In to Store (ይግቡ)' : 'Register Shop Owner'}
+            </button>
+          </div>
+        ) : isLoading && products.length === 0 && !dashboardData ? (
           <div className="flex flex-col items-center justify-center py-24 text-slate-400 gap-3">
             <div className="w-10 h-10 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
             <p className="text-xs font-medium tracking-wide">Connecting to SuqSync Local Engine...</p>
@@ -412,7 +548,7 @@ export default function App() {
         isStandMode={telebirrModal.isStandMode}
       />
 
-      {/* Freemium SaaS Pricing Plans Modal (Section 9) */}
+      {/* Freemium SaaS Pricing Plans Modal */}
       <PricingModal
         isOpen={showPricingModal}
         onClose={() => setShowPricingModal(false)}
@@ -434,16 +570,24 @@ export default function App() {
         storeProfile={storeProfile}
         onSaveProfile={handleSaveProfile}
         onResetData={handleResetData}
+        onLogout={handleLogout}
         products={products}
         sales={dashboardData?.data?.recentTransactions || []}
         t={t}
       />
 
-      {/* First-Time Suq Owner Registration Wizard Modal */}
+      {/* Suq Owner Authentication & Registration Modal */}
       <RegistrationModal
-        isOpen={showRegistrationModal}
-        onClose={() => setShowRegistrationModal(false)}
+        isOpen={showAuthModal}
+        onClose={() => {
+          if (isAuthenticated) setShowAuthModal(false);
+        }}
+        initialMode={authMode}
+        isOwnerRegistered={isOwnerRegistered}
+        registeredOwnerInfo={registeredMerchantMeta}
+        isAuthenticated={isAuthenticated}
         onRegisterSuccess={handleRegisterOwner}
+        onLoginSuccess={handleLoginOwner}
         t={t}
       />
 
@@ -457,7 +601,10 @@ export default function App() {
               <span className="text-emerald-400 font-bold">{storeProfile.storeName} ({storeProfile.pilotShopId})</span>
             ) : (
               <button
-                onClick={() => setShowRegistrationModal(true)}
+                onClick={() => {
+                  setAuthMode('register');
+                  setShowAuthModal(true);
+                }}
                 className="text-amber-400 hover:underline font-bold cursor-pointer"
               >
                 ⚠️ First-Time Setup Required
@@ -475,10 +622,13 @@ export default function App() {
             <span>Compliant with Ethiopian Startup Proclamation No. 1396/2025</span>
             <span>•</span>
             <button
-              onClick={() => setShowRegistrationModal(true)}
+              onClick={() => {
+                setAuthMode(isAuthenticated ? 'login' : (isOwnerRegistered ? 'login' : 'register'));
+                setShowAuthModal(true);
+              }}
               className="text-sky-400 hover:underline font-bold cursor-pointer"
             >
-              {isOwnerRegistered ? 'Owner Profile' : 'Register Suq'}
+              {isAuthenticated ? `👤 ${storeProfile.ownerName || 'Owner'}` : (isOwnerRegistered ? 'Sign In' : 'Register Suq')}
             </button>
           </div>
         </div>
