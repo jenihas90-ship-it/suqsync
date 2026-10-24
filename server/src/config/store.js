@@ -239,6 +239,83 @@ export const DataStore = {
     return safeUser;
   },
 
+  async resetMerchantPassword({ identifier, verificationKey, newPassword }) {
+    const rawId = (identifier || '').trim();
+    if (!rawId) throw new Error('Owner name or phone number is required');
+    if (!newPassword || newPassword.length < 4) throw new Error('New password must be at least 4 digits');
+
+    const cleanId = rawId.toLowerCase();
+    const cleanDigits = rawId.replace(/\D/g, '');
+    const cleanVerify = (verificationKey || '').trim().toLowerCase();
+    const newHash = hashPassword(newPassword);
+
+    if (getMongoStatus().connected) {
+      const escapedQuery = cleanId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const conditions = [
+        { fullName: { $regex: new RegExp(`^${escapedQuery}$`, 'i') } },
+        { phoneNumber: rawId },
+        { phoneNumber: cleanId }
+      ];
+      if (cleanDigits.length >= 8) {
+        conditions.push({ phoneNumber: { $regex: new RegExp(`${cleanDigits.slice(-8)}$`) } });
+      }
+
+      const user = await User.findOne({ $or: conditions });
+      if (!user) {
+        throw new Error(`Owner "${rawId}" not found. Please enter your registered name or phone.`);
+      }
+
+      if (user.nationalIdOrFayda && cleanVerify) {
+        const verifyDigits = cleanVerify.replace(/\D/g, '');
+        const matchesFayda = user.nationalIdOrFayda.toLowerCase() === cleanVerify;
+        const matchesPhone = verifyDigits.length >= 8 && user.phoneNumber.replace(/\D/g, '').endsWith(verifyDigits.slice(-8));
+        if (!matchesFayda && !matchesPhone) {
+          throw new Error('Verification details (National ID / Phone) do not match our records.');
+        }
+      }
+
+      user.passwordHash = newHash;
+      user.updatedAt = new Date();
+      await user.save();
+
+      const { passwordHash: _, ...safeUser } = user.toObject();
+      return safeUser;
+    }
+
+    const data = loadLocalData();
+    if (!data.merchant) {
+      throw new Error('No registered owner found in system');
+    }
+
+    const m = data.merchant;
+    const mName = (m.fullName || '').trim().toLowerCase();
+    const mPhone = (m.phoneNumber || '').trim().toLowerCase();
+    const mDigits = mPhone.replace(/\D/g, '');
+
+    const nameMatches = mName === cleanId;
+    const phoneMatches = mPhone === cleanId || (cleanDigits.length >= 8 && mDigits.endsWith(cleanDigits.slice(-8)));
+
+    if (!nameMatches && !phoneMatches) {
+      throw new Error(`Owner "${rawId}" not found. Please check your registered name or phone number.`);
+    }
+
+    if (m.nationalIdOrFayda && cleanVerify) {
+      const verifyDigits = cleanVerify.replace(/\D/g, '');
+      const matchesFayda = m.nationalIdOrFayda.toLowerCase().trim() === cleanVerify;
+      const matchesPhone = verifyDigits.length >= 8 && mDigits.endsWith(verifyDigits.slice(-8));
+      if (!matchesFayda && !matchesPhone) {
+        throw new Error('Verification details (National ID / Phone) do not match our records.');
+      }
+    }
+
+    m.passwordHash = newHash;
+    m.updatedAt = new Date().toISOString();
+    saveLocalData(data);
+
+    const { passwordHash: _, ...safeUser } = m;
+    return safeUser;
+  },
+
   async updateMerchantProfile(updates) {
     if (getMongoStatus().connected) {
       const user = await User.findOne().sort({ createdAt: -1 });

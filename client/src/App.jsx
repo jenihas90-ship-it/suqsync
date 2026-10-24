@@ -23,6 +23,7 @@ import {
   checkAuthStatus,
   registerMerchant,
   loginMerchant,
+  resetPasswordApi,
   updateMerchantProfileApi
 } from './api';
 
@@ -241,6 +242,16 @@ export default function App() {
     });
     showToast(`🎉 Registration Complete! Pilot ID: ${registered.pilotShopId}`);
     setActiveTab('inventory'); // Navigate owner directly to add their first product!
+  };
+
+  // Handler: Reset Security PIN / Password
+  const handleResetPassword = async ({ identifier, verificationKey, newPassword }) => {
+    const result = await resetPasswordApi({ identifier, verificationKey, newPassword });
+    if (result && result.merchant) {
+      setRegisteredMerchantMeta(result.merchant);
+      showToast('🎉 Password reset successfully! You can now sign in.');
+    }
+    return result;
   };
 
   // Handler: Sign Out / Lock Store
@@ -588,6 +599,7 @@ export default function App() {
         isAuthenticated={isAuthenticated}
         onRegisterSuccess={handleRegisterOwner}
         onLoginSuccess={handleLoginOwner}
+        onResetPasswordSuccess={handleResetPassword}
         t={t}
       />
 

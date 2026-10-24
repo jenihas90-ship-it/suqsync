@@ -26,21 +26,30 @@ export default function RegistrationModal({
   onClose, 
   onRegisterSuccess, 
   onLoginSuccess,
+  onResetPasswordSuccess,
   initialMode = 'login',
   isOwnerRegistered = false,
   registeredOwnerInfo = null,
   isAuthenticated = false,
   t 
 }) {
-  const [mode, setMode] = useState(initialMode);
+  const [mode, setMode] = useState(initialMode); // 'login', 'register', or 'forgot'
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [resetSuccessMsg, setResetSuccessMsg] = useState('');
 
   // Login form state
   const [loginIdentifier, setLoginIdentifier] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+
+  // Forgot password form state
+  const [forgotIdentifier, setForgotIdentifier] = useState('');
+  const [forgotVerification, setForgotVerification] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
 
   // Register form state
   const [formData, setFormData] = useState({
@@ -68,8 +77,10 @@ export default function RegistrationModal({
     if (isOpen) {
       setMode(initialMode);
       setErrorMsg('');
+      setResetSuccessMsg('');
       if (initialMode === 'login' && registeredOwnerInfo?.fullName) {
         setLoginIdentifier(registeredOwnerInfo.fullName);
+        setForgotIdentifier(registeredOwnerInfo.fullName);
       }
     }
   }, [isOpen, initialMode, registeredOwnerInfo]);
@@ -99,6 +110,49 @@ export default function RegistrationModal({
       setLoginPassword('');
     } catch (err) {
       setErrorMsg(err.message || 'Login failed. Please check your credentials.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Handle Forgot/Reset Password submission
+  const handleResetSubmit = async (e) => {
+    e.preventDefault();
+    setErrorMsg('');
+    setResetSuccessMsg('');
+
+    if (!forgotIdentifier.trim()) {
+      setErrorMsg('Please enter your registered Owner Name or Phone Number.');
+      return;
+    }
+    if (!newPassword.trim() || newPassword.length < 4) {
+      setErrorMsg('New password must be at least 4 digits.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setErrorMsg('Passwords do not match. Please re-enter.');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      if (onResetPasswordSuccess) {
+        await onResetPasswordSuccess({
+          identifier: forgotIdentifier.trim(),
+          verificationKey: forgotVerification.trim(),
+          newPassword: newPassword.trim()
+        });
+      }
+      setResetSuccessMsg('🎉 Password reset successfully! Redirecting...');
+      setLoginIdentifier(forgotIdentifier.trim());
+      setNewPassword('');
+      setConfirmPassword('');
+      setTimeout(() => {
+        setMode('login');
+        setResetSuccessMsg('');
+      }, 1500);
+    } catch (err) {
+      setErrorMsg(err.message || 'Password reset failed. Please check your name or phone.');
     } finally {
       setIsSubmitting(false);
     }
@@ -150,7 +204,6 @@ export default function RegistrationModal({
     <div 
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-200"
       onClick={(e) => {
-        // Only allow closing by clicking backdrop if already authenticated
         if (isAuthenticated && e.target === e.currentTarget && onClose) {
           onClose();
         }
@@ -160,14 +213,18 @@ export default function RegistrationModal({
         
         {/* Header Ribbon */}
         <div className={`p-5 sm:p-6 text-white transition-colors duration-300 ${
-          mode === 'login'
+          mode === 'forgot'
+            ? 'bg-gradient-to-r from-amber-950 via-slate-900 to-emerald-950'
+            : mode === 'login'
             ? 'bg-gradient-to-r from-slate-900 via-emerald-950 to-slate-900'
             : 'bg-gradient-to-r from-emerald-800 via-teal-900 to-slate-900'
         }`}>
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-2xl bg-amber-400 text-slate-950 flex items-center justify-center font-black shadow-lg shrink-0">
-                {mode === 'login' ? (
+                {mode === 'forgot' ? (
+                  <KeyRound className="w-6 h-6 stroke-[2.5]" />
+                ) : mode === 'login' ? (
                   <LogIn className="w-6 h-6 stroke-[2.5]" />
                 ) : (
                   <Store className="w-6 h-6 stroke-[2.5]" />
@@ -175,15 +232,23 @@ export default function RegistrationModal({
               </div>
               <div>
                 <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-300 block">
-                  {mode === 'login' 
+                  {mode === 'forgot'
+                    ? 'Security & Account Recovery • የይለፍ ቃል መልሶ ማግኛ'
+                    : mode === 'login' 
                     ? 'ሱቅሲንክ • Suq Owner Access' 
                     : 'Mandatory First-Time Onboarding'}
                 </span>
                 <h2 className="text-xl sm:text-2xl font-black tracking-tight leading-tight">
-                  {mode === 'login' ? 'Suq Owner Sign In (ይግቡ)' : 'Suq Owner Official Registration'}
+                  {mode === 'forgot'
+                    ? 'Reset Security PIN (የይለፍ ቃል ይቀይሩ)'
+                    : mode === 'login' 
+                    ? 'Suq Owner Sign In (ይግቡ)' 
+                    : 'Suq Owner Official Registration'}
                 </h2>
                 <p className="text-xs text-emerald-200">
-                  {mode === 'login'
+                  {mode === 'forgot'
+                    ? 'Verify your registered name or phone and create your new security PIN / password'
+                    : mode === 'login'
                     ? 'Sign in with the Name or Phone Number and Password you registered with'
                     : 'Ethiopian Startup Proclamation No. 1396/2025 • Innobiz-K Pilot Hub'}
                 </p>
@@ -191,7 +256,6 @@ export default function RegistrationModal({
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
-              {/* Optional Close Button if already authenticated */}
               {isAuthenticated && onClose && (
                 <button
                   type="button"
@@ -206,11 +270,11 @@ export default function RegistrationModal({
           </div>
 
           {/* Mode Switcher Tabs (if an owner is already registered) */}
-          {isOwnerRegistered && (
+          {isOwnerRegistered && mode !== 'forgot' && (
             <div className="mt-4 flex bg-slate-950/50 p-1 rounded-xl border border-white/15 max-w-sm">
               <button
                 type="button"
-                onClick={() => { setMode('login'); setErrorMsg(''); }}
+                onClick={() => { setMode('login'); setErrorMsg(''); setResetSuccessMsg(''); }}
                 className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-extrabold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                   mode === 'login'
                     ? 'bg-amber-400 text-slate-950 shadow-md'
@@ -222,7 +286,7 @@ export default function RegistrationModal({
               </button>
               <button
                 type="button"
-                onClick={() => { setMode('register'); setErrorMsg(''); setStep(1); }}
+                onClick={() => { setMode('register'); setErrorMsg(''); setResetSuccessMsg(''); setStep(1); }}
                 className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-extrabold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                   mode === 'register'
                     ? 'bg-amber-400 text-slate-950 shadow-md'
@@ -323,11 +387,24 @@ export default function RegistrationModal({
                 </span>
               </div>
 
-              {/* Security PIN / Password */}
+              {/* Security PIN / Password with Forgot Password link */}
               <div>
-                <label className="block text-slate-700 font-bold text-xs mb-1.5 flex items-center justify-between">
-                  <span>Security PIN / Password (የይለፍ ቃል / ፒን) *</span>
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-slate-700 font-bold text-xs">
+                    Security PIN / Password (የይለፍ ቃል / ፒን) *
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setForgotIdentifier(loginIdentifier || registeredOwnerInfo?.fullName || '');
+                      setMode('forgot');
+                      setErrorMsg('');
+                    }}
+                    className="text-emerald-700 hover:text-emerald-800 hover:underline font-bold text-[11px] cursor-pointer"
+                  >
+                    Forgot Password? (የይለፍ ቃል ረሱ?)
+                  </button>
+                </div>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
                     <Lock className="w-4 h-4" />
@@ -407,10 +484,163 @@ export default function RegistrationModal({
               </button>
             </div>
           </form>
+        ) : mode === 'forgot' ? (
+
+        /* ============================================================== */
+        /* MODE 2: FORGOT / RESET PASSWORD (የይለፍ ቃል መልሶ ማግኛ) */
+        /* ============================================================== */
+          <form onSubmit={handleResetSubmit} className="p-6 overflow-y-auto flex-1 flex flex-col justify-between space-y-5">
+            <div className="space-y-4">
+              
+              <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center shrink-0 shadow-sm font-black">
+                  <KeyRound className="w-5 h-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-800 bg-amber-100 px-2 py-0.5 rounded-md">
+                    Account Recovery • መልሶ ማግኛ
+                  </span>
+                  <p className="font-extrabold text-xs text-slate-900 mt-0.5">
+                    Reset Security PIN & Restore Store Access
+                  </p>
+                  <p className="text-[11px] text-slate-600">
+                    Verify your identity using your registered legal name or mobile number.
+                  </p>
+                </div>
+              </div>
+
+              {resetSuccessMsg && (
+                <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2 animate-in fade-in">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>{resetSuccessMsg}</span>
+                </div>
+              )}
+
+              {/* Identifier */}
+              <div>
+                <label className="block text-slate-700 font-bold text-xs mb-1.5">
+                  Owner Name or Phone Number (የተመዘገቡበት ስም ወይም ስልክ ቁጥር) *
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    <User className="w-4 h-4" />
+                  </div>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Enter registered Name (e.g. Ayisha) or Phone"
+                    value={forgotIdentifier}
+                    onChange={e => setForgotIdentifier(e.target.value)}
+                    className="w-full pl-10 pr-3.5 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-slate-900 text-xs shadow-inner"
+                    autoFocus
+                  />
+                </div>
+              </div>
+
+              {/* Verification Details */}
+              <div>
+                <label className="block text-slate-700 font-bold text-xs mb-1.5 flex items-center justify-between">
+                  <span>Verification: National ID / Fayda ID or Phone (የማረጋገጫ መረጃ)</span>
+                  <span className="text-[10px] text-slate-400 font-normal">Optional</span>
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    <ShieldCheck className="w-4 h-4" />
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Enter Fayda ID or Mobile Phone number"
+                    value={forgotVerification}
+                    onChange={e => setForgotVerification(e.target.value)}
+                    className="w-full pl-10 pr-3.5 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono text-xs shadow-inner"
+                  />
+                </div>
+                <span className="text-[10px] text-slate-400 mt-1 block">
+                  Used to verify that you are the registered owner before updating the security key.
+                </span>
+              </div>
+
+              {/* New Password and Confirm */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-bold text-xs mb-1.5">
+                    New Security PIN / Password *
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                      <Lock className="w-4 h-4" />
+                    </div>
+                    <input
+                      type={showNewPassword ? 'text' : 'password'}
+                      required
+                      placeholder="Min 4 digits"
+                      value={newPassword}
+                      onChange={e => setNewPassword(e.target.value)}
+                      className="w-full pl-10 pr-10 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-slate-900 text-xs shadow-inner"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-bold text-xs mb-1.5">
+                    Confirm New Password *
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                      <CheckCircle2 className="w-4 h-4" />
+                    </div>
+                    <input
+                      type={showNewPassword ? 'text' : 'password'}
+                      required
+                      placeholder="Repeat new PIN"
+                      value={confirmPassword}
+                      onChange={e => setConfirmPassword(e.target.value)}
+                      className="w-full pl-10 pr-3.5 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-slate-900 text-xs shadow-inner"
+                    />
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Action buttons */}
+            <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => { setMode('login'); setErrorMsg(''); setResetSuccessMsg(''); }}
+                className="py-2.5 px-4 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Back to Sign In</span>
+              </button>
+
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="py-3 px-6 rounded-xl bg-gradient-to-r from-amber-600 via-emerald-600 to-teal-700 hover:from-amber-700 hover:to-teal-800 active:scale-95 text-white font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30 transition-all cursor-pointer disabled:opacity-50"
+              >
+                {isSubmitting ? (
+                  <span>Updating PIN...</span>
+                ) : (
+                  <>
+                    <KeyRound className="w-4 h-4 text-amber-300" />
+                    <span>Save New Password & Sign In</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
         ) : (
 
         /* ============================================================== */
-        /* MODE 2: FIRST-TIME OWNER REGISTRATION (አዲስ ምዝገባ) */
+        /* MODE 3: FIRST-TIME OWNER REGISTRATION (አዲስ ምዝገባ) */
         /* ============================================================== */
           <div className="flex flex-col flex-1 overflow-hidden">
             <div className="p-6 overflow-y-auto flex-1 text-xs space-y-4">

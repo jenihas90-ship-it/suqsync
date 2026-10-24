@@ -108,6 +108,42 @@ router.post('/login', async (req, res) => {
   }
 });
 
+// POST /api/auth/reset-password - Reset owner password after identity verification
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { identifier, phoneNumber, fullName, verificationKey, nationalIdOrFayda, newPassword } = req.body;
+    const loginIdentifier = identifier || fullName || phoneNumber;
+
+    if (!loginIdentifier || !String(loginIdentifier).trim()) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Owner name or phone number is required' 
+      });
+    }
+    if (!newPassword || String(newPassword).trim().length < 4) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'New security PIN or password must be at least 4 digits' 
+      });
+    }
+
+    const updatedMerchant = await DataStore.resetMerchantPassword({
+      identifier: String(loginIdentifier).trim(),
+      verificationKey: verificationKey || nationalIdOrFayda || '',
+      newPassword: String(newPassword).trim()
+    });
+
+    res.json({
+      success: true,
+      message: 'Password reset successfully! You can now sign in with your new password.',
+      merchant: updatedMerchant
+    });
+  } catch (error) {
+    console.error('Password reset failed:', error);
+    res.status(400).json({ success: false, message: error.message });
+  }
+});
+
 // PUT /api/auth/profile - Update merchant profile
 router.put('/profile', async (req, res) => {
   try {

@@ -213,6 +213,65 @@ export async function updateMerchantProfileApi(updates) {
   }
 }
 
+export async function resetPasswordApi({ identifier, verificationKey, newPassword }) {
+  try {
+    const res = await fetch(`${API_BASE}/api/auth/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ identifier, verificationKey, newPassword }),
+      signal: AbortSignal.timeout(4500)
+    });
+    const json = await res.json();
+    if (!res.ok || !json.success) {
+      throw new Error(json.message || 'Password reset failed');
+    }
+    if (json.merchant) {
+      localStorage.setItem(LOCAL_MERCHANT_KEY, JSON.stringify(json.merchant));
+    }
+    return json;
+  } catch (err) {
+    const isNetworkError = err.name === 'TypeError' || err.name === 'TimeoutError' || err.message?.includes('fetch');
+    if (isNetworkError) {
+      console.warn('[SuqSync] Backend unreachable. Resetting password locally in browser...');
+      const localMerchantStr = localStorage.getItem(LOCAL_MERCHANT_KEY);
+      if (!localMerchantStr) {
+        throw new Error('No registered suq owner found in this browser. Please register first.');
+      }
+      const merchant = JSON.parse(localMerchantStr);
+      const cleanId = (identifier || '').trim().toLowerCase();
+      const cleanDigits = cleanId.replace(/\D/g, '');
+      const mName = (merchant.fullName || '').trim().toLowerCase();
+      const mPhone = (merchant.phoneNumber || '').trim().toLowerCase();
+      const mDigits = mPhone.replace(/\D/g, '');
+
+      const nameMatches = mName === cleanId;
+      const phoneMatches = mPhone === cleanId || (cleanDigits.length >= 8 && mDigits.endsWith(cleanDigits.slice(-8)));
+
+      if (!nameMatches && !phoneMatches) {
+        throw new Error(`Owner "${identifier}" not found. Please enter your registered name or phone.`);
+      }
+
+      if (merchant.nationalIdOrFayda && verificationKey) {
+        const cleanVerify = verificationKey.trim().toLowerCase();
+        const verifyDigits = cleanVerify.replace(/\D/g, '');
+        const matchesFayda = merchant.nationalIdOrFayda.toLowerCase().trim() === cleanVerify;
+        const matchesPhone = verifyDigits.length >= 8 && mDigits.endsWith(verifyDigits.slice(-8));
+        if (!matchesFayda && !matchesPhone) {
+          throw new Error('Verification details (National ID / Phone) do not match.');
+        }
+      }
+
+      const newHash = await hashClientPassword(newPassword);
+      merchant.passwordHash = newHash;
+      merchant.updatedAt = new Date().toISOString();
+      localStorage.setItem(LOCAL_MERCHANT_KEY, JSON.stringify(merchant));
+      const { passwordHash: _, ...safeMerchant } = merchant;
+      return { success: true, message: 'Password reset successfully!', merchant: safeMerchant };
+    }
+    throw err;
+  }
+}
+
 // ---- PRODUCTS ----
 
 export async function fetchProducts() {
