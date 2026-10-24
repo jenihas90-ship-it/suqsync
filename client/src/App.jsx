@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Lock } from 'lucide-react';
 import Navbar from './components/Navbar';
+import Home from './components/Home';
+import About from './components/About';
+import Services from './components/Services';
 import POS from './components/POS';
 import Inventory from './components/Inventory';
 import Dashboard from './components/Dashboard';
@@ -42,7 +45,7 @@ const DEFAULT_STORE_PROFILE = {
 
 export default function App() {
   const [lang, setLang] = useState(() => localStorage.getItem('suqsync_lang') || 'en');
-  const [activeTab, setActiveTab] = useState('pos');
+  const [activeTab, setActiveTab] = useState('home');
   const [products, setProducts] = useState([]);
   const [dashboardData, setDashboardData] = useState(null);
   const [serverStatus, setServerStatus] = useState({ online: true, database: { mode: 'Initializing...' } });
@@ -138,7 +141,6 @@ export default function App() {
         localStorage.removeItem('suqsync_auth_user');
         setStoreProfile(DEFAULT_STORE_PROFILE);
         setAuthMode('register');
-        setShowAuthModal(true);
       } else {
         // Owner has ALREADY registered in backend!
         if (sessionUser) {
@@ -164,7 +166,6 @@ export default function App() {
           setIsAuthenticated(false);
           setCurrentUser(null);
           setAuthMode('login');
-          setShowAuthModal(true);
           if (auth.merchant) {
             setStoreProfile({
               storeName: auth.merchant.shopName,
@@ -522,67 +523,121 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-6xl w-full mx-auto p-3 sm:p-4 md:p-6 pb-20">
-        {!isAuthenticated ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center px-4">
-            <div className="w-16 h-16 rounded-3xl bg-slate-800 border border-slate-700 flex items-center justify-center text-amber-400 mb-4 shadow-xl">
-              <Lock className="w-8 h-8" />
-            </div>
-            <h2 className="text-xl font-black text-slate-800">
-              {isOwnerRegistered ? 'SuqSync Store is Locked' : 'SuqSync Setup Required'}
-            </h2>
-            <p className="text-xs text-slate-500 max-w-sm mt-1">
-              {isOwnerRegistered 
-                ? 'Please sign in with your registered Name and Password to access your POS, stock, and daily sales.'
-                : 'Please complete the first-time owner registration to launch your digital store.'}
-            </p>
-            <button
-              onClick={() => {
+        {activeTab === 'home' && (
+          <Home
+            onNavigate={(tab) => {
+              setActiveTab(tab);
+              if (['pos', 'inventory', 'dashboard'].includes(tab) && !isAuthenticated) {
                 setAuthMode(isOwnerRegistered ? 'login' : 'register');
                 setShowAuthModal(true);
-              }}
-              className="mt-5 py-2.5 px-6 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-lg shadow-emerald-600/30 transition-all cursor-pointer"
-            >
-              {isOwnerRegistered ? 'Sign In to Store (ይግቡ)' : 'Register Shop Owner'}
-            </button>
-          </div>
-        ) : isLoading && products.length === 0 && !dashboardData ? (
-          <div className="flex flex-col items-center justify-center py-24 text-slate-400 gap-3">
-            <div className="w-10 h-10 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-            <p className="text-xs font-medium tracking-wide">Connecting to SuqSync Local Engine...</p>
-          </div>
-        ) : (
-          <>
-            {activeTab === 'pos' && (
-              <POS
-                products={products}
-                onCompleteSale={handleCompleteSale}
-                t={t}
-                isSubmitting={isSubmitting}
-                onOpenTelebirrQR={handleOpenTelebirrQR}
-                onGoToInventory={() => setActiveTab('inventory')}
-              />
-            )}
+              }
+            }}
+            storeProfile={storeProfile}
+            isOwnerRegistered={isOwnerRegistered}
+            onOpenPitchDeck={() => setShowPitchDeckModal(true)}
+            onOpenPricing={() => setShowPricingModal(true)}
+          />
+        )}
 
-            {activeTab === 'inventory' && (
-              <Inventory
-                products={products}
-                onAddProduct={handleAddProduct}
-                onUpdateStock={handleUpdateStock}
-                onDeleteProduct={handleDeleteProduct}
-                t={t}
-                isSubmitting={isSubmitting}
-              />
-            )}
+        {activeTab === 'services' && (
+          <Services
+            onNavigate={(tab) => {
+              setActiveTab(tab);
+              if (['pos', 'inventory', 'dashboard'].includes(tab) && !isAuthenticated) {
+                setAuthMode(isOwnerRegistered ? 'login' : 'register');
+                setShowAuthModal(true);
+              }
+            }}
+            onOpenTelebirrStand={handleOpenTelebirrStand}
+            onOpenPricing={() => setShowPricingModal(true)}
+            onOpenPitchDeck={() => setShowPitchDeckModal(true)}
+          />
+        )}
 
-            {activeTab === 'dashboard' && (
-              <Dashboard
-                dashboardData={dashboardData}
-                onRefresh={loadData}
-                t={t}
-                isLoading={isLoading}
-              />
-            )}
-          </>
+        {activeTab === 'about' && (
+          <About
+            onNavigate={(tab) => {
+              setActiveTab(tab);
+              if (['pos', 'inventory', 'dashboard'].includes(tab) && !isAuthenticated) {
+                setAuthMode(isOwnerRegistered ? 'login' : 'register');
+                setShowAuthModal(true);
+              }
+            }}
+            onOpenPitchDeck={() => setShowPitchDeckModal(true)}
+          />
+        )}
+
+        {['pos', 'inventory', 'dashboard'].includes(activeTab) && (
+          !isAuthenticated ? (
+            <div className="flex flex-col items-center justify-center py-20 text-center px-4">
+              <div className="w-16 h-16 rounded-3xl bg-slate-800 border border-slate-700 flex items-center justify-center text-amber-400 mb-4 shadow-xl">
+                <Lock className="w-8 h-8" />
+              </div>
+              <h2 className="text-xl font-black text-slate-800">
+                {isOwnerRegistered ? 'SuqSync Store is Locked' : 'SuqSync Setup Required'}
+              </h2>
+              <p className="text-xs text-slate-500 max-w-sm mt-1">
+                {isOwnerRegistered 
+                  ? 'Please sign in with your registered Name and Password to access your POS, stock, and daily sales.'
+                  : 'Please complete the first-time owner registration to launch your digital store.'}
+              </p>
+              <div className="flex flex-wrap items-center justify-center gap-3 mt-5">
+                <button
+                  onClick={() => {
+                    setAuthMode(isOwnerRegistered ? 'login' : 'register');
+                    setShowAuthModal(true);
+                  }}
+                  className="py-2.5 px-6 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-lg shadow-emerald-600/30 transition-all cursor-pointer"
+                >
+                  {isOwnerRegistered ? 'Sign In to Store (ይግቡ)' : 'Register Shop Owner'}
+                </button>
+                <button
+                  onClick={() => setActiveTab('home')}
+                  className="py-2.5 px-5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs transition-all cursor-pointer"
+                >
+                  Back to Home
+                </button>
+              </div>
+            </div>
+          ) : isLoading && products.length === 0 && !dashboardData ? (
+            <div className="flex flex-col items-center justify-center py-24 text-slate-400 gap-3">
+              <div className="w-10 h-10 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+              <p className="text-xs font-medium tracking-wide">Connecting to SuqSync Local Engine...</p>
+            </div>
+          ) : (
+            <>
+              {activeTab === 'pos' && (
+                <POS
+                  products={products}
+                  onCompleteSale={handleCompleteSale}
+                  t={t}
+                  isSubmitting={isSubmitting}
+                  onOpenTelebirrQR={handleOpenTelebirrQR}
+                  onGoToInventory={() => setActiveTab('inventory')}
+                />
+              )}
+
+              {activeTab === 'inventory' && (
+                <Inventory
+                  products={products}
+                  onAddProduct={handleAddProduct}
+                  onUpdateStock={handleUpdateStock}
+                  onDeleteProduct={handleDeleteProduct}
+                  t={t}
+                  isSubmitting={isSubmitting}
+                />
+              )}
+
+              {activeTab === 'dashboard' && (
+                <Dashboard
+                  dashboardData={dashboardData}
+                  onRefresh={loadData}
+                  t={t}
+                  isLoading={isLoading}
+                />
+              )}
+            </>
+          )
         )}
       </main>
 

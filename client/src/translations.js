@@ -11,6 +11,9 @@ export const translations = {
     online: "Online",
     offline: "Offline",
     tabs: {
+      home: "Home",
+      services: "Services",
+      about: "About Us",
       pos: "Quick POS",
       inventory: "Inventory",
       dashboard: "Daily Dashboard",
@@ -138,6 +141,9 @@ export const translations = {
     online: "በመስመር ላይ",
     offline: "ከመስመር ውጭ",
     tabs: {
+      home: "መነሻ",
+      services: "አገልግሎቶች",
+      about: "ስለ እኛ",
       pos: "ቀላል ሽያጭ (POS)",
       inventory: "የዕቃ መጋዘን",
       dashboard: "የዕለቱ ዳሽቦርድ",
@@ -265,6 +271,9 @@ export const translations = {
     online: "Toora Irra Jira",
     offline: "Toora Irra Hin Jiru",
     tabs: {
+      home: "Fuula Duraa",
+      services: "Tajaajiloota",
+      about: "Waa'ee Keenya",
       pos: "Gurgurtaa Saffisaa (POS)",
       inventory: "Kuusaa Meeshaalee",
       dashboard: "Gabaasa Guyyaa",

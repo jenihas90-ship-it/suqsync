@@ -1,5 +1,5 @@
 import React from 'react';
-import { Store, ShoppingBag, Package, BarChart3, Globe, Database, AlertCircle, QrCode, Sparkles, Award, Settings, User, LogOut, LogIn } from 'lucide-react';
+import { Store, ShoppingBag, Package, BarChart3, Globe, Database, AlertCircle, QrCode, Sparkles, Award, Settings, User, LogOut, LogIn, Home, Layers, Info } from 'lucide-react';
 
 export default function Navbar({ 
   activeTab, 
@@ -164,28 +164,66 @@ export default function Navbar({
       </div>
 
       {/* Primary Tab Navigation */}
-      <nav className="max-w-6xl mx-auto px-3 border-t border-slate-800/80 bg-slate-900/95 flex justify-around sm:justify-start sm:gap-4">
+      <nav className="max-w-6xl mx-auto px-2 sm:px-4 border-t border-slate-800/80 bg-slate-900/95 flex items-center overflow-x-auto no-scrollbar gap-1 sm:gap-2">
+        <button
+          onClick={() => setActiveTab('home')}
+          className={`flex items-center gap-1.5 py-2 px-2.5 sm:px-3 font-bold text-xs sm:text-sm border-b-2 whitespace-nowrap transition-all cursor-pointer ${
+            activeTab === 'home'
+              ? 'border-emerald-500 text-emerald-400 bg-emerald-500/10'
+              : 'border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-600'
+          }`}
+        >
+          <Home className="w-3.5 h-3.5" />
+          <span>{t.tabs.home || 'Home'}</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('services')}
+          className={`flex items-center gap-1.5 py-2 px-2.5 sm:px-3 font-bold text-xs sm:text-sm border-b-2 whitespace-nowrap transition-all cursor-pointer ${
+            activeTab === 'services'
+              ? 'border-emerald-500 text-emerald-400 bg-emerald-500/10'
+              : 'border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-600'
+          }`}
+        >
+          <Layers className="w-3.5 h-3.5" />
+          <span>{t.tabs.services || 'Services'}</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('about')}
+          className={`flex items-center gap-1.5 py-2 px-2.5 sm:px-3 font-bold text-xs sm:text-sm border-b-2 whitespace-nowrap transition-all cursor-pointer ${
+            activeTab === 'about'
+              ? 'border-emerald-500 text-emerald-400 bg-emerald-500/10'
+              : 'border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-600'
+          }`}
+        >
+          <Info className="w-3.5 h-3.5" />
+          <span>{t.tabs.about || 'About'}</span>
+        </button>
+
+        <div className="h-4 w-px bg-slate-800 shrink-0 mx-0.5 sm:mx-1"></div>
+
         <button
           onClick={() => setActiveTab('pos')}
-          className={`flex items-center gap-2 py-2 px-3 sm:px-4 font-semibold text-xs sm:text-sm border-b-2 transition-all relative ${
+          className={`flex items-center gap-1.5 py-2 px-2.5 sm:px-3 font-bold text-xs sm:text-sm border-b-2 whitespace-nowrap transition-all cursor-pointer ${
             activeTab === 'pos'
               ? 'border-emerald-500 text-emerald-400 bg-emerald-500/10'
               : 'border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-600'
           }`}
         >
-          <ShoppingBag className="w-4 h-4" />
+          <ShoppingBag className="w-3.5 h-3.5" />
           <span>{t.tabs.pos}</span>
         </button>
 
         <button
           onClick={() => setActiveTab('inventory')}
-          className={`flex items-center gap-2 py-2 px-3 sm:px-4 font-semibold text-xs sm:text-sm border-b-2 transition-all relative ${
+          className={`flex items-center gap-1.5 py-2 px-2.5 sm:px-3 font-bold text-xs sm:text-sm border-b-2 whitespace-nowrap transition-all cursor-pointer relative ${
             activeTab === 'inventory'
               ? 'border-emerald-500 text-emerald-400 bg-emerald-500/10'
               : 'border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-600'
           }`}
         >
-          <Package className="w-4 h-4" />
+          <Package className="w-3.5 h-3.5" />
           <span>{t.tabs.inventory}</span>
           {lowStockCount > 0 && (
             <span className="ml-1 px-1.5 py-0.2 text-[10px] font-bold rounded-full bg-rose-500 text-white animate-pulse">
@@ -196,13 +234,13 @@ export default function Navbar({
 
         <button
           onClick={() => setActiveTab('dashboard')}
-          className={`flex items-center gap-2 py-2 px-3 sm:px-4 font-semibold text-xs sm:text-sm border-b-2 transition-all relative ${
+          className={`flex items-center gap-1.5 py-2 px-2.5 sm:px-3 font-bold text-xs sm:text-sm border-b-2 whitespace-nowrap transition-all cursor-pointer ${
             activeTab === 'dashboard'
               ? 'border-emerald-500 text-emerald-400 bg-emerald-500/10'
               : 'border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-600'
           }`}
         >
-          <BarChart3 className="w-4 h-4" />
+          <BarChart3 className="w-3.5 h-3.5" />
           <span>{t.tabs.dashboard}</span>
         </button>
       </nav>
