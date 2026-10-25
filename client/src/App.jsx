@@ -13,6 +13,7 @@ import PricingModal from './components/PricingModal';
 import PitchDeckModal from './components/PitchDeckModal';
 import StoreSettingsModal from './components/StoreSettingsModal';
 import RegistrationModal from './components/RegistrationModal';
+import AdminDashboard from './components/AdminDashboard';
 import { translations } from './translations';
 import { soundFX } from './utils/audio';
 import { 
@@ -45,7 +46,16 @@ const DEFAULT_STORE_PROFILE = {
 
 export default function App() {
   const [lang, setLang] = useState(() => localStorage.getItem('suqsync_lang') || 'en');
-  const [activeTab, setActiveTab] = useState('home');
+  const [activeTab, setActiveTab] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const path = window.location.pathname;
+      const hash = window.location.hash;
+      if (path === '/super-admin' || hash === '#super-admin' || hash === '#/super-admin') {
+        return 'super-admin';
+      }
+    }
+    return 'home';
+  });
   const [products, setProducts] = useState([]);
   const [dashboardData, setDashboardData] = useState(null);
   const [serverStatus, setServerStatus] = useState({ online: true, database: { mode: 'Initializing...' } });
@@ -240,8 +250,48 @@ export default function App() {
       loadData();
     }
     const interval = setInterval(loadData, 25000);
-    return () => clearInterval(interval);
+
+    // Super-Admin route listener and key shortcut (Ctrl+Shift+A)
+    const handleUrlChange = () => {
+      const path = window.location.pathname;
+      const hash = window.location.hash;
+      if (path === '/super-admin' || hash === '#super-admin' || hash === '#/super-admin') {
+        setActiveTab('super-admin');
+      }
+    };
+
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'A' || e.key === 'a')) {
+        e.preventDefault();
+        setActiveTab('super-admin');
+        window.history.pushState({}, '', '/super-admin');
+      }
+    };
+
+    window.addEventListener('popstate', handleUrlChange);
+    window.addEventListener('hashchange', handleUrlChange);
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('popstate', handleUrlChange);
+      window.removeEventListener('hashchange', handleUrlChange);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
   }, []);
+
+  // Handler: Navigation from Super-Admin back to store
+  const handleAdminNavigate = (targetTab = 'home') => {
+    setActiveTab(targetTab);
+    if (typeof window !== 'undefined') {
+      if (window.location.pathname === '/super-admin') {
+        window.history.pushState({}, '', '/');
+      }
+      if (window.location.hash === '#super-admin' || window.location.hash === '#/super-admin') {
+        window.location.hash = '';
+      }
+    }
+  };
 
   // Handler: Returning Owner Sign In with Name & Password
   const handleLoginOwner = async ({ identifier, password }) => {
@@ -481,6 +531,14 @@ export default function App() {
   };
 
   const lowStockCount = products.filter(p => (p.stockQty || 0) < 5).length;
+
+  if (activeTab === 'super-admin') {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
+        <AdminDashboard onNavigate={handleAdminNavigate} />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col font-sans selection:bg-emerald-500 selection:text-white">
@@ -744,6 +802,22 @@ export default function App() {
             >
               {isAuthenticated ? `👤 ${storeProfile.ownerName || 'Owner'}` : (isOwnerRegistered ? 'Sign In' : 'Register Suq')}
             </button>
+            {currentUser?.phoneNumber && currentUser.phoneNumber.includes('911223344') && (
+              <>
+                <span>•</span>
+                <button
+                  onClick={() => {
+                    setActiveTab('super-admin');
+                    window.history.pushState({}, '', '/super-admin');
+                  }}
+                  className="text-amber-400 hover:underline font-bold cursor-pointer flex items-center gap-1"
+                  title="Super-Admin Dashboard (/super-admin)"
+                >
+                  <span>🛡️</span>
+                  <span>Super-Admin</span>
+                </button>
+              </>
+            )}
           </div>
         </div>
       </footer>

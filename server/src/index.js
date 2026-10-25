@@ -10,6 +10,7 @@ import productsRouter from './routes/products.js';
 import salesRouter from './routes/sales.js';
 import dashboardRouter from './routes/dashboard.js';
 import authRouter from './routes/auth.js';
+import adminRouter from './routes/admin.js';
 
 dotenv.config();
 
@@ -25,6 +26,7 @@ app.use(cors({
 app.use(express.json());
 
 // Routes
+app.use('/api/admin', adminRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/products', productsRouter);
 app.use('/api/sales', salesRouter);
