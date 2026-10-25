@@ -7,15 +7,17 @@ import {
   TrendingUp, 
   Award, 
   AlertTriangle, 
-  RefreshCw,
-  ShoppingBag,
-  Clock,
-  Landmark,
-  CreditCard,
-  PieChart,
-  FileCheck,
-  ShieldCheck,
-  ChevronRight
+  RefreshCw, 
+  ShoppingBag, 
+  Clock, 
+  Landmark, 
+  CreditCard, 
+  PieChart, 
+  FileCheck, 
+  ShieldCheck, 
+  ChevronRight,
+  Wallet,
+  ArrowUpRight
 } from 'lucide-react';
 import CreditScoreModal from './CreditScoreModal';
 import CloseoutReportModal from './CloseoutReportModal';
@@ -28,8 +30,11 @@ export default function Dashboard({ dashboardData, onRefresh, t, isLoading }) {
     totalRevenue: 0,
     totalCash: 0,
     totalDigital: 0,
+    cashTransactionsCount: 0,
+    digitalTransactionsCount: 0,
     transactionCount: 0,
     paymentBreakdown: {},
+    paymentTransactionsCount: {},
     topThreeItems: [],
     lowStockItems: [],
     lowStockItemsCount: 0,
@@ -43,19 +48,122 @@ export default function Dashboard({ dashboardData, onRefresh, t, isLoading }) {
   const cashPct = totalRev > 0 ? Math.round((cashAmt / totalRev) * 100) : 0;
   const digitalPct = totalRev > 0 ? Math.round((digitalAmt / totalRev) * 100) : 0;
 
-  const channelConfig = {
-    Cash: { label: t.pos.methods.Cash, icon: DollarSign, color: 'emerald', bar: 'bg-emerald-500' },
-    Telebirr: { label: t.pos.methods.Telebirr, icon: Smartphone, color: 'sky', bar: 'bg-sky-500' },
-    CBE: { label: t.pos.methods.CBE, icon: Landmark, color: 'purple', bar: 'bg-purple-600' },
-    'CBE Birr': { label: t.pos.methods.CBE, icon: Landmark, color: 'purple', bar: 'bg-purple-600' },
-    'Coop Bank': { label: t.pos.methods['Coop Bank'], icon: Building, color: 'rose', bar: 'bg-rose-500' },
-    'Awash Bank': { label: t.pos.methods['Awash Bank'], icon: Landmark, color: 'blue', bar: 'bg-blue-600' },
-    'Sinqee Bank': { label: t.pos.methods['Sinqee Bank'], icon: Building, color: 'amber', bar: 'bg-amber-500' },
-    'Abyssinia Bank': { label: t.pos.methods['Abyssinia Bank'], icon: Landmark, color: 'indigo', bar: 'bg-indigo-600' },
-    Other: { label: t.pos.methods.Other, icon: CreditCard, color: 'slate', bar: 'bg-slate-500' },
-  };
-
   const breakdown = data.paymentBreakdown || {};
+  const recentTxns = data.recentTransactions || [];
+
+  // Derive counts per payment method (from backend payload or fallback to analyzing recentTransactions)
+  const countBreakdown = { ...(data.paymentTransactionsCount || {}) };
+  if (Object.keys(countBreakdown).length === 0 && recentTxns.length > 0) {
+    recentTxns.forEach(sale => {
+      let m = sale.paymentMethod || 'Cash';
+      if (m === 'CBE Birr') m = 'CBE';
+      countBreakdown[m] = (countBreakdown[m] || 0) + 1;
+    });
+  }
+
+  const totalTxCount = Number(data.transactionCount || data.todayTransactionsCount || recentTxns.length || 0);
+  const cashTxCount = Number(
+    data.cashTransactionsCount ?? 
+    countBreakdown.Cash ?? 
+    recentTxns.filter(s => (s.paymentMethod || 'Cash') === 'Cash').length
+  );
+  const digitalTxCount = Number(
+    data.digitalTransactionsCount ?? 
+    (totalTxCount >= cashTxCount ? totalTxCount - cashTxCount : 0)
+  );
+
+  const channels = [
+    {
+      key: 'Cash',
+      label: t.pos?.methods?.Cash || 'Cash',
+      localLabel: 'ጥሬ ገንዘብ',
+      category: 'Cash',
+      badge: 'Physical Cash',
+      icon: DollarSign,
+      color: 'emerald',
+      bar: 'bg-emerald-500',
+      badgeBg: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+    },
+    {
+      key: 'Telebirr',
+      label: t.pos?.methods?.Telebirr || 'Telebirr',
+      localLabel: 'ቴሌብር QR',
+      category: 'Transaction',
+      badge: 'Mobile Wallet',
+      icon: Smartphone,
+      color: 'sky',
+      bar: 'bg-sky-500',
+      badgeBg: 'bg-sky-100 text-sky-800 border-sky-200',
+    },
+    {
+      key: 'CBE',
+      altKey: 'CBE Birr',
+      label: t.pos?.methods?.CBE || 'CBE (Commercial Bank)',
+      localLabel: 'የኢትዮጵያ ንግድ ባንክ',
+      category: 'Transaction',
+      badge: 'Mobile Banking',
+      icon: Landmark,
+      color: 'purple',
+      bar: 'bg-purple-600',
+      badgeBg: 'bg-purple-100 text-purple-800 border-purple-200',
+    },
+    {
+      key: 'Coop Bank',
+      label: t.pos?.methods?.['Coop Bank'] || 'Cooperative Bank',
+      localLabel: 'ኮኦፕ ባንክ / Coopay',
+      category: 'Transaction',
+      badge: 'Coopay-Ebirr',
+      icon: Building,
+      color: 'rose',
+      bar: 'bg-rose-500',
+      badgeBg: 'bg-rose-100 text-rose-800 border-rose-200',
+    },
+    {
+      key: 'Awash Bank',
+      label: t.pos?.methods?.['Awash Bank'] || 'Awash Bank',
+      localLabel: 'አዋሽ ባንክ',
+      category: 'Transaction',
+      badge: 'Awash Birr',
+      icon: Landmark,
+      color: 'blue',
+      bar: 'bg-blue-600',
+      badgeBg: 'bg-blue-100 text-blue-800 border-blue-200',
+    },
+    {
+      key: 'Sinqee Bank',
+      label: t.pos?.methods?.['Sinqee Bank'] || 'Siinqee Bank',
+      localLabel: 'ሲንቄ ባንክ',
+      category: 'Transaction',
+      badge: 'Siinqee Mobile',
+      icon: Building,
+      color: 'amber',
+      bar: 'bg-amber-500',
+      badgeBg: 'bg-amber-100 text-amber-800 border-amber-200',
+    },
+    {
+      key: 'Abyssinia Bank',
+      label: t.pos?.methods?.['Abyssinia Bank'] || 'Bank of Abyssinia',
+      localLabel: 'አቢሲኒያ ባንክ (BoA)',
+      category: 'Transaction',
+      badge: 'BoA Mobile',
+      icon: Landmark,
+      color: 'indigo',
+      bar: 'bg-indigo-600',
+      badgeBg: 'bg-indigo-100 text-indigo-800 border-indigo-200',
+    },
+    {
+      key: 'Other',
+      label: t.pos?.methods?.Other || 'Other Banks / Digital',
+      localLabel: 'ሌሎች ባንኮች',
+      category: 'Transaction',
+      badge: 'Other Transfer',
+      icon: CreditCard,
+      color: 'slate',
+      bar: 'bg-slate-500',
+      badgeBg: 'bg-slate-100 text-slate-800 border-slate-200',
+    },
+  ];
+
   const medalEmojis = ['🥇', '🥈', '🥉'];
 
   const getMethodBadge = (method) => {
@@ -81,12 +189,13 @@ export default function Dashboard({ dashboardData, onRefresh, t, isLoading }) {
   };
 
   return (
-    <div className="space-y-4">
-      {/* Dashboard Header with 2 Innobiz-K Pitch Buttons */}
-      <div className="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+    <div className="space-y-5 animate-in fade-in duration-200">
+      
+      {/* Dashboard Top Header & Z-Report Action Bar */}
+      <div className="bg-white rounded-3xl p-4 sm:p-5 shadow-sm border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-            <span className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-sm">
+          <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
+            <span className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-sm shadow-xs">
               <BarChart3 className="w-4 h-4" />
             </span>
             {t.dashboard.title}
@@ -98,7 +207,7 @@ export default function Dashboard({ dashboardData, onRefresh, t, isLoading }) {
           {/* Phase 3 Credit Score Button */}
           <button
             onClick={() => setShowCreditModal(true)}
-            className="py-2 px-3 bg-gradient-to-r from-indigo-900 to-slate-900 hover:from-indigo-950 text-amber-300 font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+            className="py-2.5 px-3 bg-gradient-to-r from-indigo-900 to-slate-900 hover:from-indigo-950 text-amber-300 font-extrabold text-xs rounded-xl flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
           >
             <Award className="w-4 h-4 text-amber-400" />
             <span>SME Credit Score</span>
@@ -107,7 +216,7 @@ export default function Dashboard({ dashboardData, onRefresh, t, isLoading }) {
           {/* End-of-Day Closeout Report */}
           <button
             onClick={() => setShowCloseoutModal(true)}
-            className="py-2 px-3 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+            className="py-2.5 px-3 bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold text-xs rounded-xl flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
           >
             <FileCheck className="w-4 h-4 text-emerald-300" />
             <span>ቀን መዝጊያ (Z-Report)</span>
@@ -116,7 +225,7 @@ export default function Dashboard({ dashboardData, onRefresh, t, isLoading }) {
           <button
             onClick={onRefresh}
             disabled={isLoading}
-            className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all cursor-pointer"
+            className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all cursor-pointer"
             title={t.dashboard.refresh}
           >
             <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
@@ -124,142 +233,247 @@ export default function Dashboard({ dashboardData, onRefresh, t, isLoading }) {
         </div>
       </div>
 
-      {/* 3 Top Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      {/* 4 Summary Cards: Total Sales, Cash Sales, Digital Transactions, Stock Alerts */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         
-        {/* Today's Revenue */}
-        <div className="bg-gradient-to-br from-emerald-600 to-teal-700 text-white rounded-2xl p-4 shadow-md relative overflow-hidden">
-          <div className="absolute right-[-10px] bottom-[-10px] w-24 h-24 bg-white/10 rounded-full blur-xl pointer-events-none"></div>
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-emerald-100">{t.dashboard.todayRevenue}</span>
-            <div className="w-7 h-7 rounded-lg bg-white/20 flex items-center justify-center">
-              <TrendingUp className="w-4 h-4 text-white" />
+        {/* Card 1: Today's Total Sales */}
+        <div className="bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800 text-white rounded-3xl p-5 shadow-md relative overflow-hidden flex flex-col justify-between">
+          <div className="absolute right-[-15px] bottom-[-15px] w-28 h-28 bg-white/10 rounded-full blur-xl pointer-events-none"></div>
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-emerald-100 uppercase tracking-wider">{t.dashboard.todayRevenue}</span>
+              <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center">
+                <TrendingUp className="w-4 h-4 text-white" />
+              </div>
+            </div>
+            <div className="mt-3">
+              <div className="text-2xl sm:text-3xl font-black tracking-tight">
+                {totalRev.toLocaleString()} <span className="text-sm font-bold text-emerald-200">{t.currency}</span>
+              </div>
+              <p className="text-[11px] text-emerald-200/90 mt-1">
+                Gross daily retail volume
+              </p>
             </div>
           </div>
-          <div className="mt-3">
-            <div className="text-2xl sm:text-3xl font-black tracking-tight">
-              {totalRev.toLocaleString()} <span className="text-sm font-bold text-emerald-200">{t.currency}</span>
-            </div>
-            <p className="text-[11px] text-emerald-200 mt-1">
-              End-of-day reconciled total
-            </p>
+          <div className="mt-4 pt-3 border-t border-white/20 flex items-center justify-between text-xs font-semibold text-emerald-100">
+            <span>All Channels</span>
+            <span className="font-extrabold bg-white/20 px-2 py-0.5 rounded-full text-[11px]">
+              {totalTxCount} {t.dashboard.transactions || 'Transactions'}
+            </span>
           </div>
         </div>
 
-        {/* Transactions Today */}
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-              {t.dashboard.todayTransactions}
-            </span>
-            <div className="w-7 h-7 rounded-lg bg-sky-100 text-sky-700 flex items-center justify-center">
-              <ShoppingBag className="w-4 h-4" />
+        {/* Card 2: Today's Total Cash Sales */}
+        <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-extrabold text-slate-500 uppercase tracking-wider">
+                {t.dashboard.cashSales || 'Cash Sales'}
+              </span>
+              <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+                <DollarSign className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="mt-3">
+              <div className="text-2xl sm:text-3xl font-black text-slate-900">
+                {cashAmt.toLocaleString()} <span className="text-xs font-bold text-slate-500">{t.currency}</span>
+              </div>
+              <p className="text-[11px] text-slate-500 mt-1">
+                {t.dashboard.cashDesc || 'Physical cash in drawer'}
+              </p>
             </div>
           </div>
-          <div className="mt-3">
-            <div className="text-2xl sm:text-3xl font-black text-slate-900">
-              {data.transactionCount || 0}
-            </div>
-            <p className="text-[11px] text-slate-400 mt-1">Logged via 2-Tap POS</p>
+          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+            <span className="text-emerald-700 font-extrabold">{cashPct}% of total</span>
+            <span className="font-bold bg-emerald-50 text-emerald-800 border border-emerald-200/60 px-2 py-0.5 rounded-full text-[11px]">
+              {cashTxCount} {cashTxCount === 1 ? 'Cash Sale' : 'Cash Sales'}
+            </span>
           </div>
         </div>
 
-        {/* Stock Alerts */}
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-              {t.dashboard.stockAlerts}
-            </span>
-            <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center">
-              <AlertTriangle className="w-4 h-4" />
+        {/* Card 3: Today's Total Digital / Bank Transactions */}
+        <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-extrabold text-slate-500 uppercase tracking-wider truncate max-w-[170px]">
+                {t.dashboard.digitalSales || 'Digital Transactions'}
+              </span>
+              <div className="w-8 h-8 rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center font-bold">
+                <Smartphone className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="mt-3">
+              <div className="text-2xl sm:text-3xl font-black text-slate-900">
+                {digitalAmt.toLocaleString()} <span className="text-xs font-bold text-slate-500">{t.currency}</span>
+              </div>
+              <p className="text-[11px] text-slate-500 mt-1 truncate">
+                {t.dashboard.digitalDesc || 'Telebirr, CBE & bank wallets'}
+              </p>
             </div>
           </div>
-          <div className="mt-3">
-            <div className="text-2xl sm:text-3xl font-black text-amber-600">
-              {data.lowStockItemsCount || 0}
+          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+            <span className="text-sky-700 font-extrabold">{digitalPct}% of total</span>
+            <span className="font-bold bg-sky-50 text-sky-800 border border-sky-200/60 px-2 py-0.5 rounded-full text-[11px]">
+              {digitalTxCount} {digitalTxCount === 1 ? 'Transaction' : 'Transactions'}
+            </span>
+          </div>
+        </div>
+
+        {/* Card 4: Stock Alerts */}
+        <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-extrabold text-slate-500 uppercase tracking-wider">
+                {t.dashboard.stockAlerts}
+              </span>
+              <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold">
+                <AlertTriangle className="w-4 h-4" />
+              </div>
             </div>
-            <p className="text-[11px] text-slate-400 mt-1">Units running below threshold (&lt;5)</p>
+            <div className="mt-3">
+              <div className="text-2xl sm:text-3xl font-black text-amber-600">
+                {data.lowStockItemsCount || 0}
+              </div>
+              <p className="text-[11px] text-slate-500 mt-1">Units running below threshold (&lt;5)</p>
+            </div>
+          </div>
+          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-slate-500">
+            <span>Inventory Health</span>
+            <span className="font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full text-[11px]">
+              {(data.lowStockItemsCount || 0) === 0 ? 'Optimal Stock' : 'Restock Needed'}
+            </span>
           </div>
         </div>
 
       </div>
 
-      {/* Cash Drawer vs Digital Banking Macro Bar */}
-      <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 space-y-3">
-        <div className="flex items-center justify-between">
+      {/* Cash Drawer vs Digital Banking Macro Reconciliation Bar */}
+      <div className="bg-white rounded-3xl p-4 sm:p-5 shadow-sm border border-slate-200 space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <PieChart className="w-4 h-4 text-emerald-600" />
-            <h3 className="font-bold text-slate-900 text-xs sm:text-sm">
+            <PieChart className="w-4 h-4 text-emerald-600 shrink-0" />
+            <h3 className="font-extrabold text-slate-900 text-xs sm:text-sm">
               {t.dashboard.reconciliationTitle}
             </h3>
           </div>
-          <div className="text-[11px] text-slate-500">
-            Total Digital: <span className="font-bold text-slate-900">{digitalAmt.toLocaleString()} {t.currency}</span> ({digitalPct}%)
+          <div className="text-xs text-slate-500">
+            Total Reconciled: <span className="font-bold text-slate-900">{totalRev.toLocaleString()} {t.currency}</span> across <span className="font-bold text-slate-900">{totalTxCount} transactions</span>
           </div>
         </div>
 
         {/* Bi-color Macro Progress Bar */}
-        <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden flex shadow-inner">
+        <div className="w-full h-3.5 bg-slate-100 rounded-full overflow-hidden flex shadow-inner">
           <div 
             className="bg-emerald-500 h-full transition-all duration-500" 
             style={{ width: `${cashPct}%` }}
-            title={`Cash: ${cashAmt} ${t.currency} (${cashPct}%)`}
+            title={`Cash: ${cashAmt.toLocaleString()} ${t.currency} (${cashTxCount} sales, ${cashPct}%)`}
           ></div>
           <div 
             className="bg-sky-500 h-full transition-all duration-500" 
             style={{ width: `${digitalPct}%` }}
-            title={`Digital: ${digitalAmt} ${t.currency} (${digitalPct}%)`}
+            title={`Digital Transactions: ${digitalAmt.toLocaleString()} ${t.currency} (${digitalTxCount} txns, ${digitalPct}%)`}
           ></div>
         </div>
 
-        <div className="flex items-center justify-between text-xs pt-0.5">
-          <div className="flex items-center gap-1.5 text-emerald-800 font-semibold">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block"></span>
-            <span>{t.dashboard.cashDrawer}: <b>{cashAmt.toLocaleString()} {t.currency}</b> ({cashPct}%)</span>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs gap-2 pt-1 border-t border-slate-100">
+          <div className="flex items-center gap-2 text-emerald-800 font-bold">
+            <span className="w-3 h-3 rounded-full bg-emerald-500 inline-block shrink-0"></span>
+            <span>
+              {t.dashboard.cashDrawer}: <b>{cashAmt.toLocaleString()} {t.currency}</b> 
+              <span className="text-slate-500 font-semibold ml-1.5">({cashTxCount} {cashTxCount === 1 ? 'sale' : 'sales'} • {cashPct}%)</span>
+            </span>
           </div>
-          <div className="flex items-center gap-1.5 text-sky-800 font-semibold">
-            <span className="w-2.5 h-2.5 rounded-full bg-sky-500 inline-block"></span>
-            <span>{t.dashboard.digitalWallets}: <b>{digitalAmt.toLocaleString()} {t.currency}</b> ({digitalPct}%)</span>
+          <div className="flex items-center gap-2 text-sky-800 font-bold">
+            <span className="w-3 h-3 rounded-full bg-sky-500 inline-block shrink-0"></span>
+            <span>
+              {t.dashboard.digitalWallets}: <b>{digitalAmt.toLocaleString()} {t.currency}</b> 
+              <span className="text-slate-500 font-semibold ml-1.5">({digitalTxCount} {digitalTxCount === 1 ? 'transaction' : 'transactions'} • {digitalPct}%)</span>
+            </span>
           </div>
         </div>
       </div>
 
-      {/* Detailed Payment Reconciliation Channels + Top 3 Best-Sellers */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+      {/* Section: Today's Sales Separated by Payment Method (In Cash and Transactions) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
         
-        {/* Breakdown by Bank / Channel */}
-        <div className="lg:col-span-7 bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-200">
-          <div className="border-b border-slate-100 pb-3 mb-3">
-            <h3 className="font-bold text-slate-900 text-sm sm:text-base flex items-center gap-2">
-              <Landmark className="w-4 h-4 text-emerald-600" />
-              <span>Channel Reconciliation Breakdown</span>
-            </h3>
-            <p className="text-[11px] text-slate-400 mt-0.5">{t.dashboard.reconciliationDesc}</p>
+        {/* Left Column: Detailed Channel List (Cash vs Telebirr vs Banks) */}
+        <div className="lg:col-span-7 bg-white rounded-3xl p-5 shadow-sm border border-slate-200 space-y-4">
+          <div className="border-b border-slate-100 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <h3 className="font-black text-slate-900 text-sm sm:text-base flex items-center gap-2">
+                <Landmark className="w-4 h-4 text-emerald-600" />
+                <span>{t.dashboard.salesByMethodTitle || "Today's Sales by Payment Method"}</span>
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {t.dashboard.salesByMethodSubtitle || "Separated by physical cash drawer and electronic bank transactions"}
+              </p>
+            </div>
+            <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 self-start sm:self-auto">
+              8 Payment Channels
+            </span>
           </div>
 
-          <div className="space-y-2.5">
-            {Object.keys(channelConfig).map((key) => {
-              const conf = channelConfig[key];
-              const amt = Number(breakdown[key] || (key === 'CBE' ? breakdown['CBE Birr'] : 0) || 0);
+          {/* Channel Cards Grid */}
+          <div className="space-y-3">
+            {channels.map((ch) => {
+              const amt = Number(breakdown[ch.key] || 0) + (ch.altKey ? Number(breakdown[ch.altKey] || 0) : 0);
+              const txCount = Number(countBreakdown[ch.key] || 0) + (ch.altKey ? Number(countBreakdown[ch.altKey] || 0) : 0);
               const pct = totalRev > 0 ? Math.round((amt / totalRev) * 100) : 0;
-              const IconComp = conf.icon;
+              const IconComp = ch.icon;
 
               return (
-                <div key={key} className="bg-slate-50/80 rounded-xl p-2.5 border border-slate-100">
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-2">
-                      <div className="w-5 h-5 rounded-md bg-white border border-slate-200 flex items-center justify-center text-slate-700">
-                        <IconComp className="w-3 h-3" />
+                <div 
+                  key={ch.key} 
+                  className="bg-slate-50/80 hover:bg-slate-50 rounded-2xl p-3.5 border border-slate-200/80 transition-all flex flex-col justify-between gap-2"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    {/* Method Info */}
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-800 shadow-xs shrink-0">
+                        <IconComp className="w-4 h-4" />
                       </div>
-                      <span className="font-bold text-xs text-slate-800">{conf.label}</span>
+                      <div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-extrabold text-xs sm:text-sm text-slate-900">
+                            {ch.label}
+                          </span>
+                          <span className={`text-[10px] font-bold px-2 py-0.2 rounded-full border ${ch.badgeBg}`}>
+                            {ch.category === 'Cash' ? '💵 Cash' : '📱 Transaction'}
+                          </span>
+                        </div>
+                        <span className="text-[11px] text-slate-500 font-medium">
+                          {ch.localLabel}
+                        </span>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <span className="font-bold text-xs text-slate-900">{amt.toLocaleString()} {t.currency}</span>
-                      <span className="text-[11px] text-slate-400 ml-1.5 font-medium">({pct}%)</span>
+
+                    {/* Sales in Cash/ETB & Transaction Count */}
+                    <div className="flex items-center justify-between sm:justify-end gap-3 pl-12 sm:pl-0">
+                      <div className="text-left sm:text-right">
+                        <div className="font-black text-xs sm:text-sm text-slate-900">
+                          {amt.toLocaleString()} <span className="text-[10px] font-bold text-slate-500">{t.currency}</span>
+                        </div>
+                        <div className="text-[11px] text-slate-500 font-semibold">
+                          {pct}% of sales
+                        </div>
+                      </div>
+
+                      {/* Transaction Count Pill */}
+                      <div className="bg-white px-2.5 py-1 rounded-xl border border-slate-200 text-center min-w-[75px] shadow-xs">
+                        <span className="block text-xs font-black text-slate-900">{txCount}</span>
+                        <span className="block text-[10px] text-slate-500 font-medium leading-none">
+                          {txCount === 1 ? 'transaction' : 'transactions'}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                  <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
-                    <div className={`${conf.bar} h-1.5 rounded-full transition-all duration-500`} style={{ width: `${pct}%` }}></div>
+
+                  {/* Channel Percentage Bar */}
+                  <div className="w-full bg-slate-200/70 rounded-full h-1.5 overflow-hidden">
+                    <div 
+                      className={`${ch.bar} h-1.5 rounded-full transition-all duration-500`} 
+                      style={{ width: `${pct}%` }}
+                    ></div>
                   </div>
                 </div>
               );
@@ -267,18 +481,19 @@ export default function Dashboard({ dashboardData, onRefresh, t, isLoading }) {
           </div>
         </div>
 
-        {/* Top 3 Best-Selling Items */}
-        <div className="lg:col-span-5 bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-200 flex flex-col justify-between">
+        {/* Right Column: Top 3 Best-Sellers & SME Credit Score Teaser */}
+        <div className="lg:col-span-5 bg-white rounded-3xl p-5 shadow-sm border border-slate-200 flex flex-col justify-between space-y-4">
           <div>
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
-              <h3 className="font-bold text-slate-900 text-sm sm:text-base flex items-center gap-2">
+              <h3 className="font-black text-slate-900 text-sm sm:text-base flex items-center gap-2">
                 <Award className="w-4 h-4 text-amber-500" />
                 {t.dashboard.topSellingTitle}
               </h3>
+              <span className="text-[11px] font-bold text-slate-400">Best Movers</span>
             </div>
 
             {(!data.topThreeItems || data.topThreeItems.length === 0) ? (
-              <div className="py-8 text-center text-slate-400 text-xs">
+              <div className="py-12 text-center text-slate-400 text-xs">
                 No item sales recorded today yet.
               </div>
             ) : (
@@ -286,19 +501,19 @@ export default function Dashboard({ dashboardData, onRefresh, t, isLoading }) {
                 {data.topThreeItems.map((item, idx) => (
                   <div
                     key={item.name + idx}
-                    className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between gap-3"
+                    className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between gap-3 hover:border-slate-200 transition-colors"
                   >
-                    <div className="flex items-center gap-2.5">
-                      <span className="text-xl">{medalEmojis[idx] || '⭐'}</span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl">{medalEmojis[idx] || '⭐'}</span>
                       <div>
-                        <div className="font-bold text-slate-900 text-xs sm:text-sm">{item.name}</div>
-                        <div className="text-[11px] text-slate-500">
+                        <div className="font-black text-slate-900 text-xs sm:text-sm">{item.name}</div>
+                        <div className="text-[11px] text-slate-500 font-medium">
                           {item.quantity} {t.dashboard.unitsSold}
                         </div>
                       </div>
                     </div>
                     <div className="text-right font-black text-emerald-700 text-xs sm:text-sm">
-                      {item.revenue} {t.currency}
+                      {item.revenue ? `${item.revenue} ${t.currency}` : `${item.quantity} sold`}
                     </div>
                   </div>
                 ))}
@@ -306,72 +521,76 @@ export default function Dashboard({ dashboardData, onRefresh, t, isLoading }) {
             )}
           </div>
 
-          {/* Micro-loan pitch teaser card */}
+          {/* Micro-Loan Qualification Card */}
           <button
             onClick={() => setShowCreditModal(true)}
-            className="mt-4 p-3 rounded-xl bg-gradient-to-r from-indigo-50 to-amber-50/60 border border-indigo-200/80 text-left flex items-center justify-between hover:border-indigo-400 transition-all cursor-pointer"
+            className="p-4 rounded-2xl bg-gradient-to-r from-indigo-50 via-purple-50 to-amber-50/60 border border-indigo-200 text-left flex items-center justify-between hover:border-indigo-400 transition-all cursor-pointer shadow-xs group"
           >
-            <div className="flex items-center gap-2">
-              <span className="text-lg">⭐</span>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-indigo-600 text-amber-300 flex items-center justify-center font-bold text-lg shadow-sm">
+                ⭐
+              </div>
               <div>
-                <span className="font-bold text-xs text-indigo-950 block">SME Loan Qualification</span>
-                <span className="text-[10px] text-slate-500">Pre-approved for working capital micro-loans</span>
+                <span className="font-black text-xs text-indigo-950 block">SME Alternative Credit Ledger</span>
+                <span className="text-[11px] text-slate-600">Reconciled cash & bank transactions qualify for working capital loans</span>
               </div>
             </div>
-            <ChevronRight className="w-4 h-4 text-indigo-600" />
+            <ChevronRight className="w-4 h-4 text-indigo-600 group-hover:translate-x-1 transition-transform" />
           </button>
         </div>
 
       </div>
 
       {/* Recent Transactions Feed */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-          <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+      <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between">
+          <div className="flex items-center gap-2">
             <Clock className="w-4 h-4 text-emerald-600" />
-            {t.dashboard.recentSalesTitle}
-          </h3>
-          <span className="text-[11px] text-slate-400">
-            {data.recentTransactions?.length || 0} entries
+            <h3 className="font-black text-slate-900 text-sm">
+              {t.dashboard.recentSalesTitle}
+            </h3>
+          </div>
+          <span className="text-xs font-bold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
+            {recentTxns.length} entries
           </span>
         </div>
 
-        {(!data.recentTransactions || data.recentTransactions.length === 0) ? (
+        {(!recentTxns || recentTxns.length === 0) ? (
           <div className="p-8 text-center text-slate-400 text-xs">
             {t.dashboard.noSalesToday}
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider font-bold border-b border-slate-100">
+              <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider font-extrabold border-b border-slate-100">
                 <tr>
-                  <th className="py-2.5 px-4">{t.dashboard.saleId}</th>
-                  <th className="py-2.5 px-4">{t.dashboard.item}</th>
-                  <th className="py-2.5 px-4">{t.dashboard.quantity}</th>
-                  <th className="py-2.5 px-4">{t.dashboard.amount}</th>
-                  <th className="py-2.5 px-4">{t.dashboard.method}</th>
-                  <th className="py-2.5 px-4 text-right">{t.dashboard.time}</th>
+                  <th className="py-3 px-4">{t.dashboard.saleId}</th>
+                  <th className="py-3 px-4">{t.dashboard.item}</th>
+                  <th className="py-3 px-4">{t.dashboard.quantity}</th>
+                  <th className="py-3 px-4">{t.dashboard.amount}</th>
+                  <th className="py-3 px-4">{t.dashboard.method}</th>
+                  <th className="py-3 px-4 text-right">{t.dashboard.time}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {data.recentTransactions.map((sale) => (
+                {recentTxns.map((sale) => (
                   <tr key={sale._id} className="hover:bg-slate-50 transition-colors">
-                    <td className="py-2.5 px-4 font-mono text-[11px] text-slate-400">
+                    <td className="py-3 px-4 font-mono text-[11px] text-slate-400">
                       #{sale._id?.slice(-6).toUpperCase()}
                     </td>
-                    <td className="py-2.5 px-4 font-bold text-slate-900">
+                    <td className="py-3 px-4 font-extrabold text-slate-900">
                       {sale.productName || 'Item'}
                     </td>
-                    <td className="py-2.5 px-4 font-medium text-slate-700">
+                    <td className="py-3 px-4 font-semibold text-slate-700">
                       {sale.quantitySold}
                     </td>
-                    <td className="py-2.5 px-4 font-black text-emerald-700">
+                    <td className="py-3 px-4 font-black text-emerald-700">
                       {sale.totalAmount} {t.currency}
                     </td>
-                    <td className="py-2.5 px-4">
+                    <td className="py-3 px-4">
                       {getMethodBadge(sale.paymentMethod)}
                     </td>
-                    <td className="py-2.5 px-4 text-right text-slate-400 font-mono text-[11px]">
+                    <td className="py-3 px-4 text-right text-slate-400 font-mono text-[11px]">
                       {sale.createdAt ? new Date(sale.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now'}
                     </td>
                   </tr>

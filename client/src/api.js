@@ -421,7 +421,23 @@ export async function fetchDailyDashboard() {
     const todaySales = sales.filter(s => (s.createdAt || '').slice(0, 10) === todayStr);
 
     let totalRevenue = 0;
+    let totalCash = 0;
+    let totalDigital = 0;
+    let cashTransactionsCount = 0;
+    let digitalTransactionsCount = 0;
+
     const byMethod = {
+      Cash: 0,
+      Telebirr: 0,
+      CBE: 0,
+      'Coop Bank': 0,
+      'Awash Bank': 0,
+      'Sinqee Bank': 0,
+      'Abyssinia Bank': 0,
+      Other: 0
+    };
+
+    const countByMethod = {
       Cash: 0,
       Telebirr: 0,
       CBE: 0,
@@ -435,9 +451,26 @@ export async function fetchDailyDashboard() {
     const productSalesCount = {};
 
     todaySales.forEach(s => {
-      totalRevenue += s.totalAmount || 0;
-      const method = s.paymentMethod || 'Cash';
-      byMethod[method] = (byMethod[method] || 0) + (s.totalAmount || 0);
+      const amt = Number(s.totalAmount) || 0;
+      totalRevenue += amt;
+      let method = s.paymentMethod || 'Cash';
+      if (method === 'CBE Birr') method = 'CBE';
+
+      if (byMethod[method] !== undefined) {
+        byMethod[method] += amt;
+        countByMethod[method] = (countByMethod[method] || 0) + 1;
+      } else {
+        byMethod[method] = amt;
+        countByMethod[method] = (countByMethod[method] || 0) + 1;
+      }
+
+      if (method === 'Cash') {
+        totalCash += amt;
+        cashTransactionsCount += 1;
+      } else {
+        totalDigital += amt;
+        digitalTransactionsCount += 1;
+      }
 
       const pName = s.productName || 'Item';
       productSalesCount[pName] = (productSalesCount[pName] || 0) + (s.quantitySold || 1);
@@ -454,16 +487,26 @@ export async function fetchDailyDashboard() {
       success: true,
       data: {
         todayRevenue: totalRevenue,
+        totalRevenue: totalRevenue,
+        totalCash: totalCash,
+        totalDigital: totalDigital,
+        cashTransactionsCount: cashTransactionsCount,
+        digitalTransactionsCount: digitalTransactionsCount,
+        transactionCount: todaySales.length,
         todayTransactionsCount: todaySales.length,
+        paymentBreakdown: byMethod,
         revenueByPaymentMethod: byMethod,
+        paymentTransactionsCount: countByMethod,
         lowStockAlerts: lowStockAlerts.map(p => ({
           _id: p._id,
           name: p.name,
           stockQty: p.stockQty,
           category: p.category
         })),
+        lowStockItemsCount: lowStockAlerts.length,
         topSellingProducts: topSelling,
-        recentTransactions: todaySales.slice(0, 10)
+        topThreeItems: topSelling.map(item => ({ name: item.name, quantity: item.units, revenue: 0 })),
+        recentTransactions: todaySales.slice(0, 25)
       }
     };
   }

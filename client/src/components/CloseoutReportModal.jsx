@@ -26,9 +26,14 @@ export default function CloseoutReportModal({ isOpen, onClose, dashboardData, t 
   };
 
   const totalRev = Number(data.totalRevenue) || 0;
-  const cashAmt = Number(data.totalCash) || 0;
-  const digitalAmt = Number(data.totalDigital) || 0;
+  const cashAmt = Number(data.totalCash ?? data.paymentBreakdown?.Cash ?? 0);
+  const digitalAmt = Number(data.totalDigital ?? (totalRev - cashAmt));
   const breakdown = data.paymentBreakdown || {};
+  const countBreakdown = data.paymentTransactionsCount || {};
+
+  const totalTx = Number(data.transactionCount || 0);
+  const cashTx = Number(data.cashTransactionsCount ?? countBreakdown.Cash ?? 0);
+  const digitalTx = Number(data.digitalTransactionsCount ?? (totalTx >= cashTx ? totalTx - cashTx : 0));
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm animate-in fade-in duration-200">
@@ -84,34 +89,46 @@ export default function CloseoutReportModal({ isOpen, onClose, dashboardData, t 
               <span className="flex items-center gap-1.5 font-medium">
                 <DollarSign className="w-3.5 h-3.5 text-emerald-600" /> Physical Cash Drawer:
               </span>
-              <span className="font-bold text-slate-900">{cashAmt.toLocaleString()} {t.currency}</span>
+              <div className="text-right">
+                <span className="font-bold text-slate-900">{cashAmt.toLocaleString()} {t.currency}</span>
+                <span className="text-[10px] text-slate-400 block">({cashTx} {cashTx === 1 ? 'sale' : 'sales'})</span>
+              </div>
             </div>
 
             <div className="flex items-center justify-between text-slate-600">
               <span className="flex items-center gap-1.5 font-medium">
                 <Smartphone className="w-3.5 h-3.5 text-sky-600" /> Digital Banking Receipts:
               </span>
-              <span className="font-bold text-slate-900">{digitalAmt.toLocaleString()} {t.currency}</span>
+              <div className="text-right">
+                <span className="font-bold text-slate-900">{digitalAmt.toLocaleString()} {t.currency}</span>
+                <span className="text-[10px] text-slate-400 block">({digitalTx} {digitalTx === 1 ? 'txn' : 'txns'})</span>
+              </div>
             </div>
 
             <div className="flex items-center justify-between text-slate-600 pt-1 border-t border-slate-200/60">
               <span className="font-medium">Total Transactions:</span>
-              <span className="font-bold text-slate-900">{data.transactionCount || 0} sales</span>
+              <span className="font-bold text-slate-900">{totalTx} sales</span>
             </div>
           </div>
 
           {/* Detailed Bank & Channel Split */}
           <div className="space-y-1.5">
             <span className="font-bold text-slate-700 block uppercase tracking-wider text-[10px]">
-              Channel Audit
+              Channel Audit (Sales & Transactions)
             </span>
             <div className="bg-white border border-slate-200 rounded-xl divide-y divide-slate-100 overflow-hidden">
-              {Object.keys(breakdown).map((k) => (
-                <div key={k} className="px-3 py-2 flex items-center justify-between">
-                  <span className="text-slate-600 font-medium">{k}</span>
-                  <span className="font-bold text-slate-900">{Number(breakdown[k] || 0).toLocaleString()} {t.currency}</span>
-                </div>
-              ))}
+              {Object.keys(breakdown).map((k) => {
+                const count = countBreakdown[k] || 0;
+                return (
+                  <div key={k} className="px-3 py-2 flex items-center justify-between">
+                    <div>
+                      <span className="text-slate-800 font-bold block">{k}</span>
+                      <span className="text-[10px] text-slate-400">{count} {count === 1 ? 'transaction' : 'transactions'}</span>
+                    </div>
+                    <span className="font-black text-slate-900">{Number(breakdown[k] || 0).toLocaleString()} {t.currency}</span>
+                  </div>
+                );
+              })}
             </div>
           </div>
 

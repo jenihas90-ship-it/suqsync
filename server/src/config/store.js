@@ -530,8 +530,21 @@ export const DataStore = {
     let totalRevenue = 0;
     let totalCash = 0;
     let totalDigital = 0;
+    let cashTransactionsCount = 0;
+    let digitalTransactionsCount = 0;
 
     const paymentBreakdown = {
+      Cash: 0,
+      Telebirr: 0,
+      CBE: 0,
+      'Coop Bank': 0,
+      'Awash Bank': 0,
+      'Sinqee Bank': 0,
+      'Abyssinia Bank': 0,
+      Other: 0,
+    };
+
+    const paymentTransactionsCount = {
       Cash: 0,
       Telebirr: 0,
       CBE: 0,
@@ -553,14 +566,18 @@ export const DataStore = {
 
       if (paymentBreakdown[method] !== undefined) {
         paymentBreakdown[method] += amt;
+        paymentTransactionsCount[method] += 1;
       } else {
         paymentBreakdown[method] = amt;
+        paymentTransactionsCount[method] = 1;
       }
 
       if (method === 'Cash') {
         totalCash += amt;
+        cashTransactionsCount += 1;
       } else {
         totalDigital += amt;
+        digitalTransactionsCount += 1;
       }
 
       const pName = sale.productName || 'Unknown Product';
@@ -582,8 +599,11 @@ export const DataStore = {
       totalRevenue,
       totalCash,
       totalDigital,
+      cashTransactionsCount,
+      digitalTransactionsCount,
       transactionCount: sales.length,
       paymentBreakdown,
+      paymentTransactionsCount,
       topThreeItems,
       lowStockItemsCount: lowStockItems.length,
       lowStockItems: lowStockItems.map(p => ({
