@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import UpgradeButton from './UpgradeButton';
 import { 
   Check, 
   Sparkles, 
@@ -156,18 +157,30 @@ export default function PricingModal({ isOpen, onClose, currentPlan = 'Basic', o
                 </div>
 
                 <div className="mt-6 pt-2">
-                  <button
-                    onClick={() => {
-                      if (tier.id !== 'Basic') {
-                        onSelectPlan(tier.id);
-                        onClose();
-                      }
-                    }}
-                    className={`w-full py-2.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${tier.buttonClass}`}
-                  >
-                    <span>{tier.buttonText}</span>
-                    {tier.id !== 'Basic' && <ArrowRight className="w-3.5 h-3.5" />}
-                  </button>
+                  {tier.id === 'Pro' ? (
+                    <UpgradeButton
+                      className="w-full text-xs py-2.5"
+                      onSuccess={() => {
+                        onSelectPlan('Pro');
+                        setTimeout(() => onClose(), 1200);
+                      }}
+                    >
+                      {tier.buttonText}
+                    </UpgradeButton>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        if (tier.id !== 'Basic') {
+                          onSelectPlan(tier.id);
+                          onClose();
+                        }
+                      }}
+                      className={`w-full py-2.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${tier.buttonClass}`}
+                    >
+                      <span>{tier.buttonText}</span>
+                      {tier.id !== 'Basic' && <ArrowRight className="w-3.5 h-3.5" />}
+                    </button>
+                  )}
                 </div>
               </div>
             ))}

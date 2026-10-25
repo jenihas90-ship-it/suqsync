@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import Product from '../models/Product.js';
 import Sale, { ALLOWED_PAYMENT_METHODS } from '../models/Sale.js';
 import User from '../models/User.js';
+import Shop from '../models/Shop.js';
 import { getMongoStatus } from './db.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -70,6 +71,31 @@ export const DataStore = {
   },
 
   // ---- SUQ OWNER REGISTRATION & AUTH ----
+
+  async updateShopPremium(shopId) {
+    const targetId = (shopId || '').trim();
+    if (getMongoStatus().connected) {
+      if (Shop) {
+        await Shop.updateMany(
+          { $or: [{ _id: targetId }, { shopId: targetId }, { pilotShopId: targetId }, { shopName: targetId }] },
+          { $set: { isPremium: true } }
+        );
+      }
+      if (User) {
+        await User.updateMany(
+          { $or: [{ _id: targetId }, { pilotShopId: targetId }, { shopName: targetId }] },
+          { $set: { isPremium: true } }
+        );
+      }
+    }
+    const data = loadLocalData();
+    if (data.merchant) {
+      data.merchant.isPremium = true;
+      data.merchant.updatedAt = new Date().toISOString();
+      saveLocalData(data);
+    }
+    return { shopId: targetId, isPremium: true };
+  },
 
   async getRegisteredMerchant() {
     if (getMongoStatus().connected) {

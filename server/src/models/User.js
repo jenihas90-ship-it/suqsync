@@ -100,6 +100,10 @@ const userSchema = new mongoose.Schema({
   isRegistered: {
     type: Boolean,
     default: true,
+  },
+  isPremium: {
+    type: Boolean,
+    default: false,
   }
 }, {
   timestamps: true,

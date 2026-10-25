@@ -1,8 +1,11 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import mongoose from 'mongoose';
 import { connectDB, getMongoStatus } from './config/db.js';
 import { DataStore } from './config/store.js';
+import Shop from './models/Shop.js';
+import User from './models/User.js';
 import productsRouter from './routes/products.js';
 import salesRouter from './routes/sales.js';
 import dashboardRouter from './routes/dashboard.js';
@@ -26,6 +29,94 @@ app.use('/api/auth', authRouter);
 app.use('/api/products', productsRouter);
 app.use('/api/sales', salesRouter);
 app.use('/api/dashboard', dashboardRouter);
+
+// Mock Telebirr Premium Upgrade Endpoint
+app.post('/api/mock-upgrade', async (req, res) => {
+  try {
+    const { shopId, id, pilotShopId, shop_id } = req.body || {};
+    const targetShopId = (shopId || id || pilotShopId || shop_id || req.query?.shopId || '').toString().trim();
+
+    if (!targetShopId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Shop ID is required'
+      });
+    }
+
+    let updatedShop = null;
+
+    // 1. If MongoDB is connected, find and update in MongoDB
+    if (mongoose.connection.readyState === 1) {
+      try {
+        const isObjectId = mongoose.Types.ObjectId.isValid(targetShopId);
+        const query = isObjectId
+          ? { $or: [{ _id: targetShopId }, { shopId: targetShopId }, { pilotShopId: targetShopId }, { shopName: targetShopId }] }
+          : { $or: [{ shopId: targetShopId }, { pilotShopId: targetShopId }, { shopName: targetShopId }] };
+
+        updatedShop = await Shop.findOneAndUpdate(
+          query,
+          { $set: { isPremium: true } },
+          { new: true }
+        );
+      } catch (e) {
+        console.warn('[MockUpgrade] Shop query note:', e.message);
+      }
+
+      // 2. Try finding and updating in MongoDB User collection (stores shop info)
+      if (!updatedShop) {
+        try {
+          const isObjectId = mongoose.Types.ObjectId.isValid(targetShopId);
+          const query = isObjectId
+            ? { $or: [{ _id: targetShopId }, { pilotShopId: targetShopId }, { shopName: targetShopId }] }
+            : { $or: [{ pilotShopId: targetShopId }, { shopName: targetShopId }] };
+
+          updatedShop = await User.findOneAndUpdate(
+            query,
+            { $set: { isPremium: true } },
+            { new: true }
+          );
+        } catch (e) {
+          console.warn('[MockUpgrade] User query note:', e.message);
+        }
+      }
+
+      // 3. If no document existed in MongoDB, create one so the test record is saved
+      if (!updatedShop) {
+        try {
+          updatedShop = await Shop.create({
+            shopId: targetShopId,
+            pilotShopId: targetShopId,
+            shopName: `SuqSync Shop (${targetShopId})`,
+            isPremium: true
+          });
+        } catch (e) {
+          console.warn('[MockUpgrade] Shop creation note:', e.message);
+        }
+      }
+    }
+
+    // 4. Update local fallback data store
+    try {
+      await DataStore.updateShopPremium(targetShopId);
+    } catch (e) {
+      // ignore
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Shop successfully upgraded to Premium!',
+      shopId: targetShopId,
+      isPremium: true,
+      shop: updatedShop
+    });
+  } catch (err) {
+    console.error('Mock upgrade error:', err);
+    return res.status(500).json({
+      success: false,
+      message: err.message || 'Failed to upgrade shop'
+    });
+  }
+});
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -76,3 +167,6 @@ const startServer = async () => {
 };
 
 startServer();
+
+export { app, startServer };
+export default app;

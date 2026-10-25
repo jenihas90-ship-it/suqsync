@@ -469,6 +469,35 @@ export async function fetchDailyDashboard() {
   }
 }
 
+export async function mockUpgrade(shopId) {
+  try {
+    const res = await fetch(`${API_BASE}/api/mock-upgrade`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ shopId, id: shopId, pilotShopId: shopId }),
+      signal: AbortSignal.timeout(5000),
+    });
+    const json = await res.json();
+    return json;
+  } catch (err) {
+    // Local fallback update
+    const localMerchantStr = localStorage.getItem(LOCAL_MERCHANT_KEY);
+    if (localMerchantStr) {
+      try {
+        const m = JSON.parse(localMerchantStr);
+        m.isPremium = true;
+        localStorage.setItem(LOCAL_MERCHANT_KEY, JSON.stringify(m));
+      } catch (e) {}
+    }
+    return {
+      success: true,
+      message: 'Shop upgraded to Premium (Local Mode)',
+      shopId,
+      isPremium: true
+    };
+  }
+}
+
 export async function checkServerHealth() {
   try {
     const res = await fetch(`${API_BASE}/api/health`, { signal: AbortSignal.timeout(2500) });
