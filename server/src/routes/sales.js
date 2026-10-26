@@ -28,7 +28,7 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ success: false, message: 'productId is required' });
     }
     if (!quantitySold || Number(quantitySold) <= 0) {
-      return res.status(400).json({ success: false, message: 'quantitySold must be at least 1' });
+      return res.status(400).json({ success: false, message: 'quantitySold must be greater than 0' });
     }
 
     // Normalize payment method if alias used (e.g. CBE Birr -> CBE)

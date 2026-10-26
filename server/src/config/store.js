@@ -453,10 +453,10 @@ export const DataStore = {
       if (product.stockQty < qty) {
         throw new Error(`Insufficient stock. Available: ${product.stockQty}, Requested: ${qty}`);
       }
-      product.stockQty -= qty;
+      product.stockQty = Math.round((product.stockQty - qty) * 1000) / 1000;
       await product.save();
 
-      const totalAmount = product.price * qty;
+      const totalAmount = Math.round((product.price * qty) * 100) / 100;
       const sale = new Sale({
         productId: product._id,
         productName: product.name,
@@ -475,10 +475,10 @@ export const DataStore = {
       throw new Error(`Insufficient stock. Available: ${product.stockQty}, Requested: ${qty}`);
     }
 
-    product.stockQty -= qty;
+    product.stockQty = Math.round((product.stockQty - qty) * 1000) / 1000;
     product.updatedAt = new Date().toISOString();
 
-    const totalAmount = product.price * qty;
+    const totalAmount = Math.round((product.price * qty) * 100) / 100;
     const newSale = {
       _id: 'sale_' + Date.now(),
       productId: product._id,

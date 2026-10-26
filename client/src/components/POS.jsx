@@ -131,21 +131,31 @@ export default function POS({
 
   const handleIncrement = () => {
     if (!selectedProduct) return;
-    if (quantity < selectedProduct.stockQty) {
-      setQuantity(prev => prev + 1);
+    const current = Number(quantity) || 0;
+    if (current < selectedProduct.stockQty) {
+      if (current < 1) {
+        setQuantity(Math.min(selectedProduct.stockQty, Math.round((current + 0.1) * 10) / 10));
+      } else {
+        setQuantity(Math.min(selectedProduct.stockQty, Math.round((current + 1) * 10) / 10));
+      }
     }
   };
 
   const handleDecrement = () => {
     if (!selectedProduct) return;
-    if (quantity > 1) {
-      setQuantity(prev => prev - 1);
+    const current = Number(quantity) || 0.1;
+    if (current <= 0.1) return;
+    if (current <= 1) {
+      setQuantity(Math.max(0.1, Math.round((current - 0.1) * 10) / 10));
+    } else {
+      setQuantity(Math.max(0.1, Math.round((current - 1) * 10) / 10));
     }
   };
 
   const handleQuickAdd = (amount) => {
     if (!selectedProduct) return;
-    const newQty = quantity + amount;
+    const current = Number(quantity) || 0;
+    const newQty = Math.round((current + amount) * 10) / 10;
     if (newQty <= selectedProduct.stockQty) {
       setQuantity(newQty);
     } else {
@@ -153,21 +163,25 @@ export default function POS({
     }
   };
 
+  const numericQty = Number(quantity) || 0;
+  const totalAmount = selectedProduct 
+    ? Math.round((selectedProduct.price * numericQty) * 100) / 100 
+    : 0;
+
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!selectedProduct || quantity <= 0) return;
+    if (!selectedProduct || numericQty <= 0) return;
 
     onCompleteSale({
       productId: selectedProduct._id,
       productName: selectedProduct.name,
-      quantitySold: quantity,
+      quantitySold: numericQty,
       unitPrice: selectedProduct.price,
-      totalAmount: selectedProduct.price * quantity,
+      totalAmount,
       paymentMethod,
     });
   };
 
-  const totalAmount = selectedProduct ? selectedProduct.price * quantity : 0;
   const currentMethodObj = paymentMethodsList.find(m => m.id === paymentMethod) || paymentMethodsList[0];
 
   const handleLaunchTelebirrQR = () => {
@@ -175,7 +189,7 @@ export default function POS({
     onOpenTelebirrQR({
       amount: totalAmount,
       productName: selectedProduct.name,
-      quantity,
+      quantity: numericQty,
       selectedProduct
     });
   };
@@ -355,57 +369,174 @@ export default function POS({
                 {/* Selected Item Summary */}
                 <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-xl p-3.5">
                   <div className="font-bold text-slate-900 text-base">{selectedProduct.name}</div>
-                  <div className="text-xs text-slate-600 mt-0.5">
-                    {t.inventory.sellingPrice}: <span className="font-bold text-emerald-700">{selectedProduct.price} {t.currency}</span> / {selectedProduct.unit || 'pcs'}
+                  <div className="text-xs text-slate-600 mt-0.5 flex items-center justify-between flex-wrap gap-1">
+                    <span>
+                      {t.inventory.sellingPrice}: <span className="font-bold text-emerald-700">{selectedProduct.price} {t.currency}</span> / {selectedProduct.unit || 'Kg'}
+                    </span>
+                    {numericQty > 0 && (
+                      <span className="font-bold text-emerald-800 bg-emerald-100/90 px-2 py-0.5 rounded-full text-[11px]">
+                        {numericQty} {selectedProduct.unit || 'Kg'} = {totalAmount} {t.currency}
+                      </span>
+                    )}
                   </div>
                   <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-1">
                     <span>{t.inventory.colStock}:</span>
-                    <span className="font-semibold text-slate-700">{selectedProduct.stockQty} {selectedProduct.unit || 'pcs'}</span>
+                    <span className="font-semibold text-slate-700">{selectedProduct.stockQty} {selectedProduct.unit || 'Kg'}</span>
                   </div>
                 </div>
 
-                {/* Quantity Controls */}
+                {/* Quantity Controls & Decimal Units */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                    {t.pos.itemQty}
-                  </label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                      {t.pos.itemQty}
+                    </label>
+                    <span className="text-[11px] font-semibold text-slate-500">
+                      {numericQty < 1 ? 'Fractional / Decimal Unit' : 'Standard Units'}
+                    </span>
+                  </div>
+
                   <div className="flex items-center gap-3">
                     <button
                       type="button"
                       onClick={handleDecrement}
-                      disabled={quantity <= 1}
+                      disabled={numericQty <= 0.1}
                       className="w-12 h-12 rounded-xl bg-slate-100 hover:bg-slate-200 disabled:opacity-40 text-slate-800 font-bold flex items-center justify-center transition-all cursor-pointer"
+                      title="Decrease quantity (-0.1 or -1)"
                     >
                       <Minus className="w-5 h-5" />
                     </button>
 
-                    <div className="flex-1 bg-slate-50 border border-slate-200 rounded-xl h-12 flex items-center justify-center font-extrabold text-xl text-slate-900">
-                      {quantity}
+                    <div className="flex-1 bg-slate-50 border border-slate-200 rounded-xl h-12 flex items-center justify-center font-extrabold text-xl text-slate-900 px-2 focus-within:ring-2 focus-within:ring-emerald-500 focus-within:border-emerald-500">
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0.01"
+                        max={selectedProduct.stockQty}
+                        value={quantity}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === '') {
+                            setQuantity('');
+                          } else {
+                            const num = parseFloat(val);
+                            if (!isNaN(num) && num >= 0) {
+                              setQuantity(num <= selectedProduct.stockQty ? num : selectedProduct.stockQty);
+                            }
+                          }
+                        }}
+                        onBlur={() => {
+                          if (!quantity || Number(quantity) <= 0) {
+                            setQuantity(0.1);
+                          }
+                        }}
+                        className="w-full text-center font-black text-xl text-slate-900 bg-transparent focus:outline-none"
+                        aria-label="Quantity"
+                      />
                     </div>
 
                     <button
                       type="button"
                       onClick={handleIncrement}
-                      disabled={quantity >= selectedProduct.stockQty}
+                      disabled={numericQty >= selectedProduct.stockQty}
                       className="w-12 h-12 rounded-xl bg-slate-100 hover:bg-slate-200 disabled:opacity-40 text-slate-800 font-bold flex items-center justify-center transition-all cursor-pointer"
+                      title="Increase quantity (+0.1 or +1)"
                     >
                       <Plus className="w-5 h-5" />
                     </button>
                   </div>
 
-                  {/* Quick Add Chips */}
-                  <div className="flex gap-2 mt-2">
-                    {[1, 2, 5, 10].map((amt) => (
-                      <button
-                        key={amt}
-                        type="button"
-                        onClick={() => handleQuickAdd(amt)}
-                        disabled={quantity + amt > selectedProduct.stockQty}
-                        className="flex-1 py-1 text-xs font-semibold rounded-lg bg-slate-100 hover:bg-emerald-100 text-slate-700 hover:text-emerald-800 disabled:opacity-30 border border-slate-200 transition-all cursor-pointer"
-                      >
-                        +{amt}
-                      </button>
-                    ))}
+                  {/* Decimal Units (< 1 Unit): 0.1 to 0.9 with Live Price Calculation */}
+                  <div className="mt-3 p-2.5 bg-slate-50/90 border border-slate-200/90 rounded-xl space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
+                        <span className="text-emerald-600">⚖️</span>
+                        <span>Less than 1 {selectedProduct.unit || 'Kg'} (Decimal):</span>
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-medium">Auto-Calculated</span>
+                    </div>
+
+                    {/* Decimal Buttons: 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9 */}
+                    <div className="grid grid-cols-5 sm:grid-cols-9 gap-1">
+                      {[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9].map((dec) => {
+                        const isCurrent = numericQty === dec;
+                        const decPrice = Math.round((selectedProduct.price * dec) * 100) / 100;
+                        return (
+                          <button
+                            key={dec}
+                            type="button"
+                            onClick={() => setQuantity(dec)}
+                            disabled={dec > selectedProduct.stockQty}
+                            className={`py-1.5 px-0.5 rounded-lg text-center font-bold text-xs transition-all cursor-pointer border flex flex-col items-center justify-center ${
+                              isCurrent
+                                ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm ring-2 ring-emerald-400/40'
+                                : 'bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 border-slate-200 hover:border-emerald-300'
+                            }`}
+                            title={`${dec} ${selectedProduct.unit || 'Kg'} = ${decPrice} ${t.currency}`}
+                          >
+                            <span className="text-xs font-black">{dec}</span>
+                            <span className={`text-[9px] font-semibold leading-none mt-0.5 ${isCurrent ? 'text-emerald-100' : 'text-emerald-600'}`}>
+                              {decPrice}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Common Ethiopian Suq Fractions (1/4 kg = 0.25, 1/2 kg = 0.5, 3/4 kg = 0.75) */}
+                    <div className="grid grid-cols-3 gap-1.5 pt-0.5">
+                      {[
+                        { val: 0.25, label: '0.25 (1/4 - ሩብ)' },
+                        { val: 0.5, label: '0.5 (1/2 - ግማሽ)' },
+                        { val: 0.75, label: '0.75 (3/4 - ሶስት ሩብ)' },
+                      ].map((frac) => {
+                        const isCurrent = numericQty === frac.val;
+                        const fracPrice = Math.round((selectedProduct.price * frac.val) * 100) / 100;
+                        return (
+                          <button
+                            key={frac.val}
+                            type="button"
+                            onClick={() => setQuantity(frac.val)}
+                            disabled={frac.val > selectedProduct.stockQty}
+                            className={`py-1 px-1.5 rounded-lg font-bold text-[10px] sm:text-xs transition-all cursor-pointer border flex items-center justify-between ${
+                              isCurrent
+                                ? 'bg-emerald-700 text-white border-emerald-800 shadow-sm'
+                                : 'bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-900 border-slate-200'
+                            }`}
+                          >
+                            <span className="truncate">{frac.label}</span>
+                            <span className={`font-black shrink-0 ml-1 ${isCurrent ? 'text-amber-200' : 'text-emerald-700'}`}>
+                              {fracPrice}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Whole Unit Chips (1, 2, 5, 10) */}
+                  <div className="flex items-center gap-1.5 mt-2">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider shrink-0">
+                      Whole:
+                    </span>
+                    {[1, 2, 5, 10].map((amt) => {
+                      const isCurrent = numericQty === amt;
+                      return (
+                        <button
+                          key={amt}
+                          type="button"
+                          onClick={() => setQuantity(amt)}
+                          disabled={amt > selectedProduct.stockQty}
+                          className={`flex-1 py-1 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
+                            isCurrent
+                              ? 'bg-slate-800 text-white border-slate-900 shadow-xs'
+                              : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200'
+                          }`}
+                        >
+                          {amt} {selectedProduct.unit || ''}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 

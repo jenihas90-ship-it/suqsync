@@ -441,7 +441,7 @@ function SuqSyncApp() {
       // Update inventory locally
       setProducts(prev => prev.map(p => {
         if (p._id === salePayload.productId) {
-          return { ...p, stockQty: Math.max(0, p.stockQty - salePayload.quantitySold) };
+          return { ...p, stockQty: Math.max(0, Math.round((p.stockQty - salePayload.quantitySold) * 1000) / 1000) };
         }
         return p;
       }));
