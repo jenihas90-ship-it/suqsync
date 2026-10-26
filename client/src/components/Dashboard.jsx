@@ -17,7 +17,9 @@ import {
   ShieldCheck, 
   ChevronRight,
   Wallet,
-  ArrowUpRight
+  ArrowUpRight,
+  BookOpen,
+  User
 } from 'lucide-react';
 import CreditScoreModal from './CreditScoreModal';
 import CloseoutReportModal from './CloseoutReportModal';
@@ -152,6 +154,17 @@ export default function Dashboard({ dashboardData, onRefresh, t, isLoading }) {
       badgeBg: 'bg-indigo-100 text-indigo-800 border-indigo-200',
     },
     {
+      key: 'Credit',
+      label: 'Credit (የብድር ደብተር)',
+      localLabel: 'በብድር የተወሰደ',
+      category: 'Credit',
+      badge: 'Unpaid Debts',
+      icon: BookOpen,
+      color: 'amber',
+      bar: 'bg-amber-500',
+      badgeBg: 'bg-amber-100 text-amber-900 border-amber-300',
+    },
+    {
       key: 'Other',
       label: t.pos?.methods?.Other || 'Other Banks / Digital',
       localLabel: 'ሌሎች ባንኮች',
@@ -166,8 +179,22 @@ export default function Dashboard({ dashboardData, onRefresh, t, isLoading }) {
 
   const medalEmojis = ['🥇', '🥈', '🥉'];
 
-  const getMethodBadge = (method) => {
+  const getMethodBadge = (method, customerName) => {
     switch (method) {
+      case 'Credit':
+        return (
+          <div className="flex flex-col gap-0.5">
+            <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-900 border border-amber-300 w-fit">
+              📋 Credit (ደብተር)
+            </span>
+            {customerName && (
+              <span className="text-[11px] font-black text-amber-900 flex items-center gap-1">
+                <span>👤</span>
+                <span>{customerName}</span>
+              </span>
+            )}
+          </div>
+        );
       case 'Telebirr':
         return <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 text-sky-800">Telebirr</span>;
       case 'CBE':
@@ -541,6 +568,67 @@ export default function Dashboard({ dashboardData, onRefresh, t, isLoading }) {
 
       </div>
 
+      {/* Today's Active Credit Customers (ደብተር) */}
+      {recentTxns.some(s => s.paymentMethod === 'Credit' || s.paymentStatus === 'Credit' || s.customerName) && (
+        <div className="bg-amber-50/90 border-2 border-amber-300/80 rounded-3xl p-5 shadow-sm space-y-3 animate-in fade-in">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5">
+              <span className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold text-sm shadow-xs">
+                📋
+              </span>
+              <div>
+                <h3 className="font-black text-amber-950 text-sm sm:text-base flex items-center gap-2">
+                  <span>Today's Credit Customers</span>
+                  <span className="text-amber-800 text-xs font-semibold">(በብድር የወሰዱ ደንበኞች)</span>
+                </h3>
+                <p className="text-xs text-amber-800">
+                  Customers who took products today on credit and owe payment
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="px-3 py-1 rounded-full text-xs font-black bg-amber-200 text-amber-900 border border-amber-300">
+                Total Credit: {recentTxns
+                  .filter(s => s.paymentMethod === 'Credit' || s.paymentStatus === 'Credit')
+                  .reduce((acc, s) => acc + (Number(s.totalAmount) || 0), 0)
+                  .toLocaleString()} {t.currency}
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 pt-1">
+            {recentTxns
+              .filter(s => s.paymentMethod === 'Credit' || s.paymentStatus === 'Credit' || s.customerName)
+              .map(tx => (
+                <div key={tx._id} className="bg-white rounded-2xl p-3 border border-amber-200 shadow-xs flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5 truncate">
+                    <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-black text-xs shrink-0">
+                      👤
+                    </div>
+                    <div className="truncate">
+                      <span className="font-black text-slate-900 text-xs block truncate">
+                        {tx.customerName || 'Anonymous Customer'}
+                      </span>
+                      <span className="text-[11px] text-slate-500 truncate block">
+                        {tx.productName} ({tx.quantitySold} unit)
+                      </span>
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <span className="font-black text-xs text-amber-700 block">
+                      {tx.totalAmount} {t.currency}
+                    </span>
+                    <span className="text-[10px] font-bold text-amber-600 block">
+                      {tx.paymentStatus === 'Paid' ? '✓ Paid' : '⏳ Credit Debt'}
+                    </span>
+                  </div>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
+
       {/* Recent Transactions Feed */}
       <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between">
@@ -566,6 +654,7 @@ export default function Dashboard({ dashboardData, onRefresh, t, isLoading }) {
                 <tr>
                   <th className="py-3 px-4">{t.dashboard.saleId}</th>
                   <th className="py-3 px-4">{t.dashboard.item}</th>
+                  <th className="py-3 px-4">Customer / Debtor (ደንበኛ)</th>
                   <th className="py-3 px-4">{t.dashboard.quantity}</th>
                   <th className="py-3 px-4">{t.dashboard.amount}</th>
                   <th className="py-3 px-4">{t.dashboard.method}</th>
@@ -573,28 +662,61 @@ export default function Dashboard({ dashboardData, onRefresh, t, isLoading }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {recentTxns.map((sale) => (
-                  <tr key={sale._id} className="hover:bg-slate-50 transition-colors">
-                    <td className="py-3 px-4 font-mono text-[11px] text-slate-400">
-                      #{sale._id?.slice(-6).toUpperCase()}
-                    </td>
-                    <td className="py-3 px-4 font-extrabold text-slate-900">
-                      {sale.productName || 'Item'}
-                    </td>
-                    <td className="py-3 px-4 font-semibold text-slate-700">
-                      {sale.quantitySold}
-                    </td>
-                    <td className="py-3 px-4 font-black text-emerald-700">
-                      {sale.totalAmount} {t.currency}
-                    </td>
-                    <td className="py-3 px-4">
-                      {getMethodBadge(sale.paymentMethod)}
-                    </td>
-                    <td className="py-3 px-4 text-right text-slate-400 font-mono text-[11px]">
-                      {sale.createdAt ? new Date(sale.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now'}
-                    </td>
-                  </tr>
-                ))}
+                {recentTxns.map((sale) => {
+                  const isCreditSale = sale.paymentMethod === 'Credit' || sale.paymentStatus === 'Credit';
+                  return (
+                    <tr 
+                      key={sale._id} 
+                      className={`transition-colors ${
+                        isCreditSale ? 'bg-amber-50/40 hover:bg-amber-50/70' : 'hover:bg-slate-50'
+                      }`}
+                    >
+                      <td className="py-3 px-4 font-mono text-[11px] text-slate-400">
+                        #{sale._id?.slice(-6).toUpperCase()}
+                      </td>
+                      <td className="py-3 px-4 font-extrabold text-slate-900">
+                        <div>{sale.productName || 'Item'}</div>
+                      </td>
+                      <td className="py-3 px-4">
+                        {sale.customerName ? (
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="w-5 h-5 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center text-[10px] font-black shrink-0">
+                              👤
+                            </span>
+                            <span className="font-black text-xs text-amber-950">
+                              {sale.customerName}
+                            </span>
+                            {isCreditSale && (
+                              <span className="px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-amber-200 text-amber-900 border border-amber-300">
+                                Credit
+                              </span>
+                            )}
+                          </div>
+                        ) : isCreditSale ? (
+                          <span className="font-bold text-xs text-amber-700 italic">
+                            Credit Customer
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 font-mono text-[11px]">
+                            —
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 font-semibold text-slate-700">
+                        {sale.quantitySold}
+                      </td>
+                      <td className="py-3 px-4 font-black text-emerald-700">
+                        {sale.totalAmount} {t.currency}
+                      </td>
+                      <td className="py-3 px-4">
+                        {getMethodBadge(sale.paymentMethod, sale.customerName)}
+                      </td>
+                      <td className="py-3 px-4 text-right text-slate-400 font-mono text-[11px]">
+                        {sale.createdAt ? new Date(sale.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now'}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

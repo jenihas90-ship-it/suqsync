@@ -569,6 +569,7 @@ export const DataStore = {
       'Awash Bank': 0,
       'Sinqee Bank': 0,
       'Abyssinia Bank': 0,
+      Credit: 0,
       Other: 0,
     };
 
@@ -580,6 +581,7 @@ export const DataStore = {
       'Awash Bank': 0,
       'Sinqee Bank': 0,
       'Abyssinia Bank': 0,
+      Credit: 0,
       Other: 0,
     };
 
