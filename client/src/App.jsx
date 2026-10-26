@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, useLocation, useNavigate } from 'react-router-dom';
 import { Lock } from 'lucide-react';
 import Navbar from './components/Navbar';
 import Home from './components/Home';
@@ -44,7 +45,8 @@ const DEFAULT_STORE_PROFILE = {
   isRegistered: false,
 };
 
-export default function App() {
+function SuqSyncApp() {
+  const location = useLocation();
   const [lang, setLang] = useState(() => localStorage.getItem('suqsync_lang') || 'en');
   const [activeTab, setActiveTab] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -53,6 +55,8 @@ export default function App() {
       if (path === '/super-admin' || hash === '#super-admin' || hash === '#/super-admin') {
         return 'super-admin';
       }
+      if (path === '/about') return 'about';
+      if (path === '/services') return 'services';
     }
     return 'home';
   });
@@ -279,6 +283,20 @@ export default function App() {
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, []);
+
+  // Sync React Router pathname with activeTab
+  useEffect(() => {
+    const path = location.pathname;
+    if (path === '/about') {
+      setActiveTab('about');
+    } else if (path === '/services') {
+      setActiveTab('services');
+    } else if (path === '/super-admin') {
+      setActiveTab('super-admin');
+    } else if (path === '/' && (activeTab === 'about' || activeTab === 'services')) {
+      setActiveTab('home');
+    }
+  }, [location.pathname, activeTab]);
 
   // Handler: Navigation from Super-Admin back to store
   const handleAdminNavigate = (targetTab = 'home') => {
@@ -543,20 +561,6 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col font-sans selection:bg-emerald-500 selection:text-white">
       
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div className="fixed top-16 right-4 z-50 animate-in slide-in-from-top-3">
-          <div className={`px-4 py-2.5 rounded-xl shadow-xl text-xs font-bold flex items-center gap-2 border ${
-            toastMessage.type === 'error'
-              ? 'bg-rose-600 text-white border-rose-700'
-              : 'bg-emerald-600 text-white border-emerald-700'
-          }`}>
-            <span>{toastMessage.type === 'error' ? '⚠️' : '✓'}</span>
-            <span>{toastMessage.msg}</span>
-          </div>
-        </div>
-      )}
-
       {/* Navigation Header */}
       <Navbar
         activeTab={activeTab}
@@ -578,6 +582,20 @@ export default function App() {
         isAuthenticated={isAuthenticated}
         storeProfile={storeProfile}
       />
+
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed top-16 right-4 z-50 animate-in slide-in-from-top-3">
+          <div className={`px-4 py-2.5 rounded-xl shadow-xl text-xs font-bold flex items-center gap-2 border ${
+            toastMessage.type === 'error'
+              ? 'bg-rose-600 text-white border-rose-700'
+              : 'bg-emerald-600 text-white border-emerald-700'
+          }`}>
+            <span>{toastMessage.type === 'error' ? '⚠️' : '✓'}</span>
+            <span>{toastMessage.msg}</span>
+          </div>
+        </div>
+      )}
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-6xl w-full mx-auto p-3 sm:p-4 md:p-6 pb-20">
@@ -823,5 +841,13 @@ export default function App() {
       </footer>
 
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <Router>
+      <SuqSyncApp />
+    </Router>
   );
 }
