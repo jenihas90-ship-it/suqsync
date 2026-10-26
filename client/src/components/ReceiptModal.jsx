@@ -75,6 +75,13 @@ export default function ReceiptModal({ saleData, onClose, storeProfile, t }) {
             <span>Other Digital Bank</span>
           </div>
         );
+      case 'Credit':
+        return (
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/15 border border-amber-400 text-amber-900 font-bold text-xs">
+            <span>📋</span>
+            <span>Credit (በብድር - ያልተከፈለ)</span>
+          </div>
+        );
       case 'Cash':
       default:
         return (
@@ -138,6 +145,13 @@ export default function ReceiptModal({ saleData, onClose, storeProfile, t }) {
               <span className="font-medium">{t.pos.paymentMethod}:</span>
               {getMethodBadge(saleData.paymentMethod)}
             </div>
+
+            {saleData.customerName && (
+              <div className="pt-1.5 border-t border-slate-200/80 flex items-center justify-between text-xs text-slate-700">
+                <span className="font-medium">Customer (ደንበኛ):</span>
+                <span className="font-extrabold text-amber-800">👤 {saleData.customerName}</span>
+              </div>
+            )}
           </div>
 
           <div className="bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg p-2.5 text-xs text-center font-medium">

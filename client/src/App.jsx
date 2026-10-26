@@ -8,6 +8,7 @@ import Services from './components/Services';
 import POS from './components/POS';
 import Inventory from './components/Inventory';
 import Dashboard from './components/Dashboard';
+import CreditBook from './components/CreditBook';
 import ReceiptModal from './components/ReceiptModal';
 import TelebirrQRModal from './components/TelebirrQRModal';
 import PricingModal from './components/PricingModal';
@@ -57,6 +58,7 @@ function SuqSyncApp() {
       }
       if (path === '/about') return 'about';
       if (path === '/services') return 'services';
+      if (path === '/credit-book' || path === '/credit') return 'credit-book';
     }
     return 'home';
   });
@@ -291,9 +293,11 @@ function SuqSyncApp() {
       setActiveTab('about');
     } else if (path === '/services') {
       setActiveTab('services');
+    } else if (path === '/credit-book' || path === '/credit') {
+      setActiveTab('credit-book');
     } else if (path === '/super-admin') {
       setActiveTab('super-admin');
-    } else if (path === '/' && (activeTab === 'about' || activeTab === 'services')) {
+    } else if (path === '/' && (activeTab === 'about' || activeTab === 'services' || activeTab === 'credit-book')) {
       setActiveTab('home');
     }
   }, [location.pathname, activeTab]);
@@ -434,6 +438,8 @@ function SuqSyncApp() {
         productId: salePayload.productId,
         quantitySold: salePayload.quantitySold,
         paymentMethod: salePayload.paymentMethod,
+        paymentStatus: salePayload.paymentStatus,
+        customerName: salePayload.customerName,
       });
 
       soundFX.playSaleSuccess();
@@ -453,9 +459,14 @@ function SuqSyncApp() {
         unitPrice: salePayload.unitPrice,
         totalAmount: salePayload.totalAmount,
         paymentMethod: salePayload.paymentMethod,
+        paymentStatus: salePayload.paymentStatus,
+        customerName: salePayload.customerName,
       });
 
-      showToast(t.pos.saleSuccess);
+      const successMsg = salePayload.paymentStatus === 'Credit'
+        ? `📋 Saved to Credit Book for ${salePayload.customerName || 'Customer'}!`
+        : t.pos.saleSuccess;
+      showToast(successMsg);
       fetchDailyDashboard().then(dash => setDashboardData(dash)).catch(() => {});
     } catch (err) {
       console.error('Sale submission failed:', err);
@@ -643,7 +654,7 @@ function SuqSyncApp() {
           />
         )}
 
-        {['pos', 'inventory', 'dashboard'].includes(activeTab) && (
+        {['pos', 'inventory', 'dashboard', 'credit', 'credit-book'].includes(activeTab) && (
           !isAuthenticated ? (
             <div className="flex flex-col items-center justify-center py-20 text-center px-4">
               <div className="w-16 h-16 rounded-3xl bg-slate-800 border border-slate-700 flex items-center justify-center text-amber-400 mb-4 shadow-xl">
@@ -654,7 +665,7 @@ function SuqSyncApp() {
               </h2>
               <p className="text-xs text-slate-500 max-w-sm mt-1">
                 {isOwnerRegistered 
-                  ? 'Please sign in with your registered Name and Password to access your POS, stock, and daily sales.'
+                  ? 'Please sign in with your registered Name and Password to access your POS, stock, daily sales, and Credit Book.'
                   : 'Please complete the first-time owner registration to launch your digital store.'}
               </p>
               <div className="flex flex-wrap items-center justify-center gap-3 mt-5">
@@ -710,6 +721,14 @@ function SuqSyncApp() {
                   onRefresh={loadData}
                   t={t}
                   isLoading={isLoading}
+                />
+              )}
+
+              {(activeTab === 'credit' || activeTab === 'credit-book') && (
+                <CreditBook
+                  t={t}
+                  onNavigate={(tab) => setActiveTab(tab)}
+                  showToast={showToast}
                 />
               )}
             </>

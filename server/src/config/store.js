@@ -439,13 +439,13 @@ export const DataStore = {
 
   // ---- SALES & POS ----
 
-  async recordSale({ productId, quantitySold, paymentMethod }) {
+  async recordSale({ productId, quantitySold, paymentMethod, paymentStatus = 'Paid', customerName = '' }) {
     const qty = Number(quantitySold);
     if (!qty || qty <= 0) {
       throw new Error('Quantity sold must be greater than 0');
     }
 
-    const method = paymentMethod === 'CBE Birr' ? 'CBE' : paymentMethod;
+    const method = paymentMethod === 'CBE Birr' ? 'CBE' : (paymentMethod || (paymentStatus === 'Credit' ? 'Credit' : 'Cash'));
 
     if (getMongoStatus().connected) {
       const product = await Product.findById(productId);
@@ -464,6 +464,8 @@ export const DataStore = {
         unitPrice: product.price,
         totalAmount,
         paymentMethod: method,
+        paymentStatus: paymentStatus === 'Credit' ? 'Credit' : 'Paid',
+        customerName: customerName ? customerName.trim() : undefined,
       });
       return await sale.save();
     }
@@ -487,6 +489,8 @@ export const DataStore = {
       unitPrice: product.price,
       totalAmount,
       paymentMethod: method,
+      paymentStatus: paymentStatus === 'Credit' ? 'Credit' : 'Paid',
+      customerName: customerName ? customerName.trim() : undefined,
       createdAt: new Date().toISOString()
     };
     data.sales.unshift(newSale);
@@ -500,6 +504,30 @@ export const DataStore = {
     }
     const data = loadLocalData();
     return data.sales;
+  },
+
+  async getCreditSales() {
+    if (getMongoStatus().connected) {
+      return await Sale.find({ paymentStatus: 'Credit' }).sort({ createdAt: -1 });
+    }
+    const data = loadLocalData();
+    return (data.sales || []).filter(s => s.paymentStatus === 'Credit');
+  },
+
+  async markSalePaid(saleId) {
+    if (getMongoStatus().connected) {
+      const sale = await Sale.findById(saleId);
+      if (!sale) throw new Error('Sale not found');
+      sale.paymentStatus = 'Paid';
+      return await sale.save();
+    }
+    const data = loadLocalData();
+    const sale = (data.sales || []).find(s => s._id === saleId || s.id === saleId);
+    if (!sale) throw new Error('Sale not found');
+    sale.paymentStatus = 'Paid';
+    sale.updatedAt = new Date().toISOString();
+    saveLocalData(data);
+    return sale;
   },
 
   // ---- DASHBOARD & RECONCILIATION ----

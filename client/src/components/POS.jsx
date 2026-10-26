@@ -30,6 +30,9 @@ export default function POS({
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [quantity, setQuantity] = useState(1);
   const [paymentMethod, setPaymentMethod] = useState('Cash');
+  const [isCredit, setIsCredit] = useState(false);
+  const [customerName, setCustomerName] = useState('');
+  const [creditError, setCreditError] = useState('');
   const [activeCategory, setActiveCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -172,14 +175,24 @@ export default function POS({
     e.preventDefault();
     if (!selectedProduct || numericQty <= 0) return;
 
+    if (isCredit && !customerName.trim()) {
+      setCreditError('Customer Name is required when giving on credit (የደንበኛ ስም ያስገቡ)');
+      return;
+    }
+    setCreditError('');
+
     onCompleteSale({
       productId: selectedProduct._id,
       productName: selectedProduct.name,
       quantitySold: numericQty,
       unitPrice: selectedProduct.price,
       totalAmount,
-      paymentMethod,
+      paymentMethod: isCredit ? 'Credit' : paymentMethod,
+      paymentStatus: isCredit ? 'Credit' : 'Paid',
+      customerName: isCredit ? customerName.trim() : undefined,
     });
+
+    setCustomerName('');
   };
 
   const currentMethodObj = paymentMethodsList.find(m => m.id === paymentMethod) || paymentMethodsList[0];
@@ -540,70 +553,146 @@ export default function POS({
                   </div>
                 </div>
 
-                {/* Expanded Payment Methods */}
-                <div>
-                  <div className="flex items-center justify-between mb-2">
+                {/* Payment Mode Toggle: Pay Now vs Give on Credit */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
                     <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                      {t.pos.paymentMethod}
+                      Payment Terms (የክፍያ ሁኔታ)
                     </label>
                     <span className="text-[11px] font-semibold text-slate-500">
-                      Selected: <span className="font-bold text-slate-800">{currentMethodObj.name}</span>
+                      {isCredit ? '📋 Credit Ledger' : '💵 Immediate Settlement'}
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {paymentMethodsList.map((m) => {
-                      const IconComponent = m.icon;
-                      const isSelected = paymentMethod === m.id;
-
-                      return (
-                        <button
-                          key={m.id}
-                          type="button"
-                          onClick={() => setPaymentMethod(m.id)}
-                          className={`p-2 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between min-h-[58px] ${
-                            isSelected
-                              ? m.activeClass
-                              : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between w-full">
-                            <IconComponent className={`w-4 h-4 ${isSelected ? 'stroke-[2.5]' : 'text-slate-400'}`} />
-                            {isSelected && (
-                              <span className={`w-2 h-2 rounded-full ${m.dotColor}`}></span>
-                            )}
-                          </div>
-                          <div className="font-bold text-xs mt-1 leading-tight truncate">
-                            {m.name}
-                          </div>
-                        </button>
-                      );
-                    })}
+                  <div className="bg-slate-100 p-1 rounded-xl flex items-center gap-1 border border-slate-200">
+                    <button
+                      type="button"
+                      onClick={() => { setIsCredit(false); setCreditError(''); }}
+                      className={`flex-1 py-2 px-3 rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                        !isCredit
+                          ? 'bg-white text-emerald-800 shadow-sm border border-slate-200/80 font-black'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <span>💵</span>
+                      <span>Pay Now (ወዲያውኑ ክፈል)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setIsCredit(true); setCreditError(''); }}
+                      className={`flex-1 py-2 px-3 rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                        isCredit
+                          ? 'bg-amber-500 text-white shadow-sm font-black'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <span>📋</span>
+                      <span>Give on Credit (በብድር ስጥ)</span>
+                    </button>
                   </div>
-
-                  {paymentMethod === 'Telebirr' && (
-                    <div className="mt-2.5 p-2.5 bg-sky-50 border border-sky-300/80 rounded-xl flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <QrCode className="w-5 h-5 text-sky-600" />
-                        <div>
-                          <span className="text-xs font-bold text-sky-900 block leading-tight">Telebirr Dynamic QR</span>
-                          <span className="text-[10px] text-sky-700">Display QR code for customer to scan & pay</span>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={handleLaunchTelebirrQR}
-                        className="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-lg shadow-sm transition-all cursor-pointer"
-                      >
-                        Show QR
-                      </button>
-                    </div>
-                  )}
-
-                  <p className="text-[10px] text-slate-400 mt-1.5 italic">
-                    {t.pos.methodSubtitles[paymentMethod] || 'Select merchant receiving method'}
-                  </p>
                 </div>
+
+                {/* Conditional: Give on Credit Required Customer Name Input */}
+                {isCredit ? (
+                  <div className="bg-amber-50/90 border border-amber-300 rounded-xl p-3.5 space-y-2.5 animate-in fade-in duration-200">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-black text-amber-950 uppercase tracking-wider">
+                        Customer Name (የደንበኛ ስም) <span className="text-rose-600">*</span>
+                      </label>
+                      <span className="text-[10px] font-bold text-amber-800 bg-amber-200/60 px-2 py-0.5 rounded-full">
+                        ደብተር / Credit Book
+                      </span>
+                    </div>
+
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Ato Abebe, Weizero Almaz, etc."
+                      value={customerName}
+                      onChange={(e) => {
+                        setCustomerName(e.target.value);
+                        if (creditError) setCreditError('');
+                      }}
+                      className="w-full px-3 py-2.5 rounded-lg bg-white border border-amber-300 text-slate-900 placeholder-slate-400 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 shadow-xs"
+                    />
+
+                    {creditError && (
+                      <p className="text-xs font-bold text-rose-600 flex items-center gap-1">
+                        <span>⚠️</span>
+                        <span>{creditError}</span>
+                      </p>
+                    )}
+
+                    <p className="text-[11px] text-amber-900 leading-tight">
+                      ℹ️ This sale will be saved to your <strong>Credit Book</strong> as an unpaid debt. Customer owes <strong>{totalAmount} {t.currency}</strong>.
+                    </p>
+                  </div>
+                ) : (
+                  /* Expanded Payment Methods (Pay Now Mode) */
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                        {t.pos.paymentMethod}
+                      </label>
+                      <span className="text-[11px] font-semibold text-slate-500">
+                        Selected: <span className="font-bold text-slate-800">{currentMethodObj.name}</span>
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {paymentMethodsList.map((m) => {
+                        const IconComponent = m.icon;
+                        const isSelected = paymentMethod === m.id;
+
+                        return (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onClick={() => setPaymentMethod(m.id)}
+                            className={`p-2 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between min-h-[58px] ${
+                              isSelected
+                                ? m.activeClass
+                                : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between w-full">
+                              <IconComponent className={`w-4 h-4 ${isSelected ? 'stroke-[2.5]' : 'text-slate-400'}`} />
+                              {isSelected && (
+                                <span className={`w-2 h-2 rounded-full ${m.dotColor}`}></span>
+                              )}
+                            </div>
+                            <div className="font-bold text-xs mt-1 leading-tight truncate">
+                              {m.name}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {paymentMethod === 'Telebirr' && (
+                      <div className="mt-2.5 p-2.5 bg-sky-50 border border-sky-300/80 rounded-xl flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <QrCode className="w-5 h-5 text-sky-600" />
+                          <div>
+                            <span className="text-xs font-bold text-sky-900 block leading-tight">Telebirr Dynamic QR</span>
+                            <span className="text-[10px] text-sky-700">Display QR code for customer to scan & pay</span>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleLaunchTelebirrQR}
+                          className="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-lg shadow-sm transition-all cursor-pointer"
+                        >
+                          Show QR
+                        </button>
+                      </div>
+                    )}
+
+                    <p className="text-[10px] text-slate-400 mt-1.5 italic">
+                      {t.pos.methodSubtitles[paymentMethod] || 'Select merchant receiving method'}
+                    </p>
+                  </div>
+                )}
 
                 {/* Subtotal & 2-Tap Complete Sale Button */}
                 <div className="pt-2 border-t border-slate-200 space-y-3">
@@ -615,7 +704,7 @@ export default function POS({
                   </div>
 
                   <div className="flex gap-2">
-                    {paymentMethod === 'Telebirr' && (
+                    {!isCredit && paymentMethod === 'Telebirr' && (
                       <button
                         type="button"
                         onClick={handleLaunchTelebirrQR}
@@ -630,10 +719,19 @@ export default function POS({
                     <button
                       type="submit"
                       disabled={isSubmitting || quantity <= 0}
-                      className="flex-1 py-4 px-4 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 active:scale-[0.98] text-white font-extrabold text-base rounded-xl shadow-xl shadow-emerald-700/25 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+                      className={`flex-1 py-4 px-4 active:scale-[0.98] text-white font-extrabold text-base rounded-xl shadow-xl flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 ${
+                        isCredit
+                          ? 'bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 shadow-amber-600/30'
+                          : 'bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 shadow-emerald-700/25'
+                      }`}
                     >
                       {isSubmitting ? (
                         <span className="inline-block w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                      ) : isCredit ? (
+                        <>
+                          <span>📋</span>
+                          <span>Record Credit Sale ({totalAmount} {t.currency})</span>
+                        </>
                       ) : (
                         <>
                           <CheckCircle2 className="w-5 h-5" />
@@ -644,7 +742,9 @@ export default function POS({
                   </div>
 
                   <p className="text-[10px] text-center text-slate-400 font-medium">
-                    ⚡ 2-Tap POS: Automatically deducts {quantity} unit(s) & registers in {currentMethodObj.name}.
+                    {isCredit
+                      ? `⚡ Deducts ${quantity} unit(s) & registers debt in Credit Book under "${customerName || 'Customer'}".`
+                      : `⚡ 2-Tap POS: Automatically deducts ${quantity} unit(s) & registers in ${currentMethodObj.name}.`}
                   </p>
                 </div>
 

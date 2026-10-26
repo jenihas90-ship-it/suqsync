@@ -364,12 +364,12 @@ export async function deleteProduct(id) {
 
 // ---- SALES ----
 
-export async function recordSale({ productId, quantitySold, paymentMethod }) {
+export async function recordSale({ productId, quantitySold, paymentMethod, paymentStatus = 'Paid', customerName = '' }) {
   try {
     const res = await fetch(`${API_BASE}/api/sales`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ productId, quantitySold, paymentMethod }),
+      body: JSON.stringify({ productId, quantitySold, paymentMethod, paymentStatus, customerName }),
       signal: AbortSignal.timeout(4500)
     });
     const json = await res.json();
@@ -384,7 +384,7 @@ export async function recordSale({ productId, quantitySold, paymentMethod }) {
     if (prod.stockQty < quantitySold) throw new Error(`Insufficient stock. Only ${prod.stockQty} remaining.`);
 
     // Deduct stock
-    prod.stockQty = Math.max(0, prod.stockQty - quantitySold);
+    prod.stockQty = Math.max(0, Math.round((prod.stockQty - quantitySold) * 1000) / 1000);
     saveLocalProducts(products);
 
     const newSale = {
@@ -393,14 +393,50 @@ export async function recordSale({ productId, quantitySold, paymentMethod }) {
       productName: prod.name,
       quantitySold: Number(quantitySold),
       unitPrice: prod.price,
-      totalAmount: prod.price * Number(quantitySold),
-      paymentMethod: paymentMethod || 'Cash',
+      totalAmount: Math.round((prod.price * Number(quantitySold)) * 100) / 100,
+      paymentMethod: paymentMethod || (paymentStatus === 'Credit' ? 'Credit' : 'Cash'),
+      paymentStatus: paymentStatus === 'Credit' ? 'Credit' : 'Paid',
+      customerName: customerName ? customerName.trim() : undefined,
       createdAt: new Date().toISOString()
     };
 
     const sales = getLocalSales();
     saveLocalSales([newSale, ...sales]);
     return newSale;
+  }
+}
+
+// Fetch unpaid credit sales
+export async function fetchCreditSales() {
+  try {
+    const res = await fetch(`${API_BASE}/api/sales/credit`, { signal: AbortSignal.timeout(4500) });
+    if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+    const json = await res.json();
+    return json.data || [];
+  } catch (err) {
+    const sales = getLocalSales();
+    return sales.filter(s => s.paymentStatus === 'Credit');
+  }
+}
+
+// Mark a specific credit sale as Paid
+export async function markCreditSalePaid(saleId) {
+  try {
+    const res = await fetch(`${API_BASE}/api/sales/${saleId}/mark-paid`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(4500)
+    });
+    const json = await res.json();
+    if (!res.ok || !json.success) {
+      throw new Error(json.message || 'Failed to settle debt');
+    }
+    return json.data;
+  } catch (err) {
+    const sales = getLocalSales();
+    const updated = sales.map(s => s._id === saleId ? { ...s, paymentStatus: 'Paid' } : s);
+    saveLocalSales(updated);
+    return updated.find(s => s._id === saleId);
   }
 }
 

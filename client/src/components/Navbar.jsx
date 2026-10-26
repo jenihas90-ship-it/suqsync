@@ -15,6 +15,7 @@ import {
   Info, 
   Sparkles, 
   QrCode, 
+  BookOpen,
   X 
 } from 'lucide-react';
 
@@ -330,6 +331,26 @@ export default function Navbar({
                   <span>{t?.tabs?.dashboard || 'Dashboard'}</span>
                 </div>
               </button>
+
+              <button
+                onClick={() => {
+                  setActiveTab?.('credit-book');
+                  setIsOpen(false);
+                }}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-bold text-sm transition-all cursor-pointer ${
+                  activeTab === 'credit-book' || activeTab === 'credit'
+                    ? 'bg-amber-600 text-white shadow-md'
+                    : 'text-slate-200 hover:bg-slate-800 hover:text-white'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <BookOpen className="w-4 h-4 text-amber-400" />
+                  <span>Credit Book (የብድር ደብተር)</span>
+                </div>
+                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-400/30">
+                  Debter
+                </span>
+              </button>
             </div>
 
             {/* Mobile Actions Grid */}
@@ -463,6 +484,19 @@ export default function Navbar({
         >
           <BarChart3 className="w-3.5 h-3.5" />
           <span>{t?.tabs?.dashboard || 'Dashboard'}</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab?.('credit-book')}
+          className={`flex items-center gap-1.5 py-2 px-3 font-bold text-xs sm:text-sm border-b-2 whitespace-nowrap transition-all cursor-pointer ${
+            activeTab === 'credit-book' || activeTab === 'credit'
+              ? 'border-amber-500 text-amber-400 bg-amber-500/10'
+              : 'border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-600'
+          }`}
+          title="Credit Book Ledger (የብድር ደብተር)"
+        >
+          <BookOpen className="w-3.5 h-3.5 text-amber-400" />
+          <span>Credit Book</span>
         </button>
       </nav>
     </header>

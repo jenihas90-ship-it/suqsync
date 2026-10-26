@@ -9,6 +9,7 @@ export const ALLOWED_PAYMENT_METHODS = [
   'Awash Bank',
   'Sinqee Bank',
   'Abyssinia Bank',
+  'Credit',
   'Other'
 ];
 
@@ -42,6 +43,15 @@ const saleSchema = new mongoose.Schema({
       values: ALLOWED_PAYMENT_METHODS,
       message: '{VALUE} is not a supported payment method'
     },
+  },
+  paymentStatus: {
+    type: String,
+    enum: ['Paid', 'Credit'],
+    default: 'Paid',
+  },
+  customerName: {
+    type: String,
+    trim: true,
   },
 }, {
   timestamps: true,
