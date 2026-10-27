@@ -31,10 +31,17 @@ const saleSchema = new mongoose.Schema({
     type: Number,
     required: true,
   },
+  totalPrice: {
+    type: Number,
+    min: [0, 'Total price cannot be negative'],
+  },
   totalAmount: {
     type: Number,
-    required: [true, 'Total amount is required'],
     min: [0, 'Total amount cannot be negative'],
+  },
+  ownerId: {
+    type: mongoose.Schema.Types.Mixed,
+    index: true,
   },
   paymentMethod: {
     type: String,
@@ -55,6 +62,17 @@ const saleSchema = new mongoose.Schema({
   },
 }, {
   timestamps: true,
+});
+
+// Ensure totalPrice and totalAmount are in sync
+saleSchema.pre('validate', function(next) {
+  if (this.totalPrice == null && this.totalAmount != null) {
+    this.totalPrice = this.totalAmount;
+  }
+  if (this.totalAmount == null && this.totalPrice != null) {
+    this.totalAmount = this.totalPrice;
+  }
+  next();
 });
 
 export const Sale = mongoose.models.Sale || mongoose.model('Sale', saleSchema);

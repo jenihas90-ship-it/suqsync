@@ -1,8 +1,55 @@
 import express from 'express';
-import { DataStore } from '../config/store.js';
+import jwt from 'jsonwebtoken';
+import { DataStore, getLocalPeriodBoundaries } from '../config/store.js';
 import { ALLOWED_PAYMENT_METHODS } from '../models/Sale.js';
 
 const router = express.Router();
+
+// GET /api/sales/revenue-summary - Aggregate weekly, monthly, and yearly revenue
+router.get('/revenue-summary', async (req, res) => {
+  try {
+    // 1. Resolve logged-in ownerId
+    let ownerId = req.user?._id || req.user?.id || req.user?.ownerId || req.ownerId || req.query.ownerId || req.headers['x-owner-id'] || req.headers['owner-id'];
+
+    if (!ownerId && req.headers.authorization) {
+      try {
+        const rawToken = typeof req.headers.authorization === 'string' && req.headers.authorization.startsWith('Bearer ')
+          ? req.headers.authorization.slice(7).trim()
+          : String(req.headers.authorization).trim();
+        const decoded = jwt.decode(rawToken);
+        if (decoded) {
+          ownerId = decoded.ownerId || decoded._id || decoded.id || decoded.userId || decoded.sub;
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    if (!ownerId) {
+      const activeMerchant = await DataStore.getRegisteredMerchant();
+      if (activeMerchant?._id) {
+        ownerId = activeMerchant._id;
+      }
+    }
+
+    // 2. Resolve client/local timezone
+    const clientTz = req.query.timezone || req.headers['x-timezone'] || process.env.TIMEZONE || 'Africa/Addis_Ababa';
+    const boundaries = getLocalPeriodBoundaries(clientTz);
+
+    // 3. Compute revenue totals
+    const totals = await DataStore.getRevenueSummary({ ownerId, boundaries });
+
+    // Return strictly as { weeklyTotal: Number, monthlyTotal: Number, yearlyTotal: Number }
+    return res.json({
+      weeklyTotal: Number(totals.weeklyTotal || 0),
+      monthlyTotal: Number(totals.monthlyTotal || 0),
+      yearlyTotal: Number(totals.yearlyTotal || 0),
+    });
+  } catch (error) {
+    console.error('Error fetching revenue summary:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
 
 // GET /api/sales - List recent sales
 router.get('/', async (req, res) => {
@@ -82,12 +129,30 @@ router.post('/', async (req, res) => {
       });
     }
 
+    let ownerId = req.user?._id || req.user?.id || req.user?.ownerId || req.body.ownerId || req.query.ownerId || req.headers['x-owner-id'];
+    if (!ownerId && req.headers.authorization) {
+      try {
+        const rawToken = typeof req.headers.authorization === 'string' && req.headers.authorization.startsWith('Bearer ')
+          ? req.headers.authorization.slice(7).trim()
+          : String(req.headers.authorization).trim();
+        const decoded = jwt.decode(rawToken);
+        if (decoded) {
+          ownerId = decoded.ownerId || decoded._id || decoded.id || decoded.userId || decoded.sub;
+        }
+      } catch (err) {}
+    }
+    if (!ownerId) {
+      const activeMerchant = await DataStore.getRegisteredMerchant();
+      if (activeMerchant?._id) ownerId = activeMerchant._id;
+    }
+
     const sale = await DataStore.recordSale({
       productId,
       quantitySold: Number(quantitySold),
       paymentMethod: normalizedMethod,
       paymentStatus: isCredit ? 'Credit' : 'Paid',
       customerName: customerName ? customerName.trim() : undefined,
+      ownerId: ownerId || undefined,
     });
 
     res.status(201).json({

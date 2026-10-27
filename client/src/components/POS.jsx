@@ -123,9 +123,10 @@ export default function POS({
   const handleSelectProduct = (product) => {
     if (product.stockQty <= 0) return;
     if (selectedProduct?._id === product._id) {
-      if (quantity < product.stockQty) {
-        setQuantity(prev => prev + 1);
-      }
+      setQuantity(prev => {
+        const current = parseFloat(prev) || 0;
+        return current + 1;
+      });
     } else {
       setSelectedProduct(product);
       setQuantity(1);
@@ -134,46 +135,40 @@ export default function POS({
 
   const handleIncrement = () => {
     if (!selectedProduct) return;
-    const current = Number(quantity) || 0;
-    if (current < selectedProduct.stockQty) {
-      if (current < 1) {
-        setQuantity(Math.min(selectedProduct.stockQty, Math.round((current + 0.1) * 10) / 10));
-      } else {
-        setQuantity(Math.min(selectedProduct.stockQty, Math.round((current + 1) * 10) / 10));
-      }
+    const current = parseFloat(quantity) || 0;
+    if (current < 1) {
+      setQuantity(Math.round((current + 0.1) * 100) / 100);
+    } else {
+      setQuantity(Math.round((current + 1) * 100) / 100);
     }
   };
 
   const handleDecrement = () => {
     if (!selectedProduct) return;
-    const current = Number(quantity) || 0.1;
+    const current = parseFloat(quantity) || 0.1;
     if (current <= 0.1) return;
     if (current <= 1) {
-      setQuantity(Math.max(0.1, Math.round((current - 0.1) * 10) / 10));
+      setQuantity(Math.max(0.1, Math.round((current - 0.1) * 100) / 100));
     } else {
-      setQuantity(Math.max(0.1, Math.round((current - 1) * 10) / 10));
+      setQuantity(Math.max(0.1, Math.round((current - 1) * 100) / 100));
     }
   };
 
   const handleQuickAdd = (amount) => {
     if (!selectedProduct) return;
-    const current = Number(quantity) || 0;
-    const newQty = Math.round((current + amount) * 10) / 10;
-    if (newQty <= selectedProduct.stockQty) {
-      setQuantity(newQty);
-    } else {
-      setQuantity(selectedProduct.stockQty);
-    }
+    const current = parseFloat(quantity) || 0;
+    setQuantity(Math.round((current + amount) * 100) / 100);
   };
 
-  const numericQty = Number(quantity) || 0;
+  const numericQty = parseFloat(quantity) || 0;
   const totalAmount = selectedProduct 
     ? Math.round((selectedProduct.price * numericQty) * 100) / 100 
     : 0;
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!selectedProduct || numericQty <= 0) return;
+    const qty = parseFloat(quantity);
+    if (!selectedProduct || isNaN(qty) || qty <= 0) return;
 
     if (isCredit && !customerName.trim()) {
       setCreditError('Customer Name is required when giving on credit (የደንበኛ ስም ያስገቡ)');
@@ -184,7 +179,7 @@ export default function POS({
     onCompleteSale({
       productId: selectedProduct._id,
       productName: selectedProduct.name,
-      quantitySold: numericQty,
+      quantitySold: qty,
       unitPrice: selectedProduct.price,
       totalAmount,
       paymentMethod: isCredit ? 'Credit' : paymentMethod,
@@ -377,7 +372,7 @@ export default function POS({
                 </p>
               </div>
             ) : (
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form onSubmit={handleSubmit} noValidate className="space-y-4">
                 
                 {/* Selected Item Summary */}
                 <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-xl p-3.5">
@@ -413,7 +408,7 @@ export default function POS({
                     <button
                       type="button"
                       onClick={handleDecrement}
-                      disabled={numericQty <= 0.1}
+                      disabled={numericQty <= 0.01}
                       className="w-12 h-12 rounded-xl bg-slate-100 hover:bg-slate-200 disabled:opacity-40 text-slate-800 font-bold flex items-center justify-center transition-all cursor-pointer"
                       title="Decrease quantity (-0.1 or -1)"
                     >
@@ -422,25 +417,19 @@ export default function POS({
 
                     <div className="flex-1 bg-slate-50 border border-slate-200 rounded-xl h-12 flex items-center justify-center font-extrabold text-xl text-slate-900 px-2 focus-within:ring-2 focus-within:ring-emerald-500 focus-within:border-emerald-500">
                       <input
-                        type="number"
-                        step="0.1"
-                        min="0.01"
-                        max={selectedProduct.stockQty}
+                        type="text"
+                        inputMode="decimal"
                         value={quantity}
                         onChange={(e) => {
                           const val = e.target.value;
-                          if (val === '') {
-                            setQuantity('');
-                          } else {
-                            const num = parseFloat(val);
-                            if (!isNaN(num) && num >= 0) {
-                              setQuantity(num <= selectedProduct.stockQty ? num : selectedProduct.stockQty);
-                            }
+                          if (val === '' || /^[0-9]*[.,]?[0-9]*$/.test(val)) {
+                            setQuantity(val.replace(',', '.'));
                           }
                         }}
                         onBlur={() => {
-                          if (!quantity || Number(quantity) <= 0) {
-                            setQuantity(0.1);
+                          const parsed = parseFloat(quantity);
+                          if (!quantity || isNaN(parsed) || parsed <= 0) {
+                            setQuantity(1);
                           }
                         }}
                         className="w-full text-center font-black text-xl text-slate-900 bg-transparent focus:outline-none"
@@ -451,8 +440,7 @@ export default function POS({
                     <button
                       type="button"
                       onClick={handleIncrement}
-                      disabled={numericQty >= selectedProduct.stockQty}
-                      className="w-12 h-12 rounded-xl bg-slate-100 hover:bg-slate-200 disabled:opacity-40 text-slate-800 font-bold flex items-center justify-center transition-all cursor-pointer"
+                      className="w-12 h-12 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold flex items-center justify-center transition-all cursor-pointer"
                       title="Increase quantity (+0.1 or +1)"
                     >
                       <Plus className="w-5 h-5" />

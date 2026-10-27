@@ -38,10 +38,12 @@
       "productName": "Soofii",
       "quantitySold": 1.5,
       "unitPrice": 80,
+      "totalPrice": 120,
       "totalAmount": 120,
       "paymentMethod": "Credit",
       "paymentStatus": "Paid",
       "customerName": "Ato Abebe",
+      "ownerId": "user_1792784786781",
       "createdAt": "2026-10-26T19:26:08.900Z",
       "updatedAt": "2026-10-26T19:26:49.997Z"
     },
@@ -51,8 +53,11 @@
       "productName": "Soofii",
       "quantitySold": 11,
       "unitPrice": 80,
+      "totalPrice": 880,
       "totalAmount": 880,
       "paymentMethod": "CBE",
+      "paymentStatus": "Paid",
+      "ownerId": "user_1792784786781",
       "createdAt": "2026-10-23T19:51:29.215Z"
     }
   ],

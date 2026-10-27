@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
+import mongoose from 'mongoose';
 import Product from '../models/Product.js';
 import Sale, { ALLOWED_PAYMENT_METHODS } from '../models/Sale.js';
 import User from '../models/User.js';
@@ -16,6 +17,57 @@ const DATA_FILE = path.join(DATA_DIR, 'db.json');
 // Helper to hash password/PIN with salt
 export function hashPassword(password) {
   return crypto.createHash('sha256').update(password + '_suqsync_salt_2026').digest('hex');
+}
+
+/**
+ * Calculates start of current week (Monday), month (1st), and year (Jan 1st) in local timezone
+ */
+export function getLocalPeriodBoundaries(clientTz) {
+  const now = new Date();
+  let tz = clientTz;
+  try {
+    if (tz) Intl.DateTimeFormat(undefined, { timeZone: tz });
+  } catch (e) {
+    tz = undefined;
+  }
+
+  const options = tz ? { timeZone: tz } : {};
+  const dStr = now.toLocaleDateString('en-CA', options);
+  const [year, month, day] = dStr.split('-').map(Number);
+
+  function parseLocalDateToUTC(y, m, d) {
+    if (!tz) return new Date(y, m - 1, d, 0, 0, 0, 0);
+    const dt = new Date(Date.UTC(y, m - 1, d, 0, 0, 0));
+    const tzFormatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: tz,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    });
+    const parts = tzFormatter.formatToParts(dt);
+    const mp = {};
+    parts.forEach(p => { mp[p.type] = p.value; });
+    const guessInTz = new Date(Date.UTC(mp.year, mp.month - 1, mp.day, mp.hour === '24' ? 0 : mp.hour, mp.minute, mp.second));
+    return new Date(dt.getTime() + (dt.getTime() - guessInTz.getTime()));
+  }
+
+  const startOfMonth = parseLocalDateToUTC(year, month, 1);
+  const startOfYear = parseLocalDateToUTC(year, 1, 1);
+
+  // Day of week
+  const dayName = new Intl.DateTimeFormat('en-US', { ...options, weekday: 'short' }).format(now);
+  const dayMap = { 'Sun': 0, 'Mon': 1, 'Tue': 2, 'Wed': 3, 'Thu': 4, 'Fri': 5, 'Sat': 6 };
+  const dayOfWeek = dayMap[dayName] !== undefined ? dayMap[dayName] : now.getDay();
+  const diffToMonday = (dayOfWeek === 0 ? 6 : dayOfWeek - 1);
+
+  const todayStart = parseLocalDateToUTC(year, month, day);
+  const startOfWeek = new Date(todayStart.getTime() - diffToMonday * 24 * 60 * 60 * 1000);
+
+  return { startOfWeek, startOfMonth, startOfYear };
 }
 
 // SuqSync starts 100% clean and empty for the merchant
@@ -439,7 +491,7 @@ export const DataStore = {
 
   // ---- SALES & POS ----
 
-  async recordSale({ productId, quantitySold, paymentMethod, paymentStatus = 'Paid', customerName = '' }) {
+  async recordSale({ productId, quantitySold, paymentMethod, paymentStatus = 'Paid', customerName = '', ownerId }) {
     const qty = Number(quantitySold);
     if (!qty || qty <= 0) {
       throw new Error('Quantity sold must be greater than 0');
@@ -462,10 +514,12 @@ export const DataStore = {
         productName: product.name,
         quantitySold: qty,
         unitPrice: product.price,
+        totalPrice: totalAmount,
         totalAmount,
         paymentMethod: method,
         paymentStatus: paymentStatus === 'Credit' ? 'Credit' : 'Paid',
         customerName: customerName ? customerName.trim() : undefined,
+        ownerId: ownerId || undefined,
       });
       return await sale.save();
     }
@@ -487,15 +541,122 @@ export const DataStore = {
       productName: product.name,
       quantitySold: qty,
       unitPrice: product.price,
+      totalPrice: totalAmount,
       totalAmount,
       paymentMethod: method,
       paymentStatus: paymentStatus === 'Credit' ? 'Credit' : 'Paid',
       customerName: customerName ? customerName.trim() : undefined,
+      ownerId: ownerId || undefined,
       createdAt: new Date().toISOString()
     };
     data.sales.unshift(newSale);
     saveLocalData(data);
     return newSale;
+  },
+
+  async getRevenueSummary({ ownerId, boundaries }) {
+    const { startOfWeek, startOfMonth, startOfYear } = boundaries;
+
+    if (getMongoStatus().connected) {
+      const matchConditions = {
+        paymentStatus: 'Paid',
+        createdAt: { $gte: startOfYear },
+      };
+
+      if (ownerId) {
+        const isOid = mongoose.Types.ObjectId.isValid(ownerId);
+        matchConditions.$or = isOid
+          ? [{ ownerId: new mongoose.Types.ObjectId(ownerId) }, { ownerId: String(ownerId) }]
+          : [{ ownerId: String(ownerId) }];
+      }
+
+      const pipeline = [
+        { $match: matchConditions },
+        {
+          $facet: {
+            yearly: [
+              {
+                $group: {
+                  _id: null,
+                  total: {
+                    $sum: {
+                      $ifNull: ['$totalPrice', { $ifNull: ['$totalAmount', 0] }]
+                    }
+                  }
+                }
+              }
+            ],
+            monthly: [
+              { $match: { createdAt: { $gte: startOfMonth } } },
+              {
+                $group: {
+                  _id: null,
+                  total: {
+                    $sum: {
+                      $ifNull: ['$totalPrice', { $ifNull: ['$totalAmount', 0] }]
+                    }
+                  }
+                }
+              }
+            ],
+            weekly: [
+              { $match: { createdAt: { $gte: startOfWeek } } },
+              {
+                $group: {
+                  _id: null,
+                  total: {
+                    $sum: {
+                      $ifNull: ['$totalPrice', { $ifNull: ['$totalAmount', 0] }]
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ];
+
+      const aggResult = await Sale.aggregate(pipeline);
+      const facet = aggResult[0] || {};
+
+      const weeklyTotal = facet.weekly?.[0]?.total ? Math.round(facet.weekly[0].total * 100) / 100 : 0;
+      const monthlyTotal = facet.monthly?.[0]?.total ? Math.round(facet.monthly[0].total * 100) / 100 : 0;
+      const yearlyTotal = facet.yearly?.[0]?.total ? Math.round(facet.yearly[0].total * 100) / 100 : 0;
+
+      return { weeklyTotal, monthlyTotal, yearlyTotal };
+    }
+
+    // Local JSON Store Fallback
+    const data = loadLocalData();
+    const sales = data.sales || [];
+
+    let weeklyTotal = 0;
+    let monthlyTotal = 0;
+    let yearlyTotal = 0;
+
+    for (const sale of sales) {
+      if (sale.paymentStatus !== 'Paid') continue;
+      if (ownerId && sale.ownerId && String(sale.ownerId) !== String(ownerId)) continue;
+
+      const amt = Number(sale.totalPrice ?? sale.totalAmount) || 0;
+      const saleDate = sale.createdAt ? new Date(sale.createdAt) : new Date();
+
+      if (saleDate >= startOfYear) {
+        yearlyTotal += amt;
+      }
+      if (saleDate >= startOfMonth) {
+        monthlyTotal += amt;
+      }
+      if (saleDate >= startOfWeek) {
+        weeklyTotal += amt;
+      }
+    }
+
+    return {
+      weeklyTotal: Math.round(weeklyTotal * 100) / 100,
+      monthlyTotal: Math.round(monthlyTotal * 100) / 100,
+      yearlyTotal: Math.round(yearlyTotal * 100) / 100,
+    };
   },
 
   async getSales() {

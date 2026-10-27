@@ -721,6 +721,7 @@ function SuqSyncApp() {
                   onRefresh={loadData}
                   t={t}
                   isLoading={isLoading}
+                  currentUser={currentUser}
                 />
               )}
 

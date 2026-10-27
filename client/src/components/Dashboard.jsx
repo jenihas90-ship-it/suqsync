@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   BarChart3, 
   DollarSign, 
@@ -19,14 +19,110 @@ import {
   Wallet,
   ArrowUpRight,
   BookOpen,
-  User
+  User,
+  Calendar
 } from 'lucide-react';
 import CreditScoreModal from './CreditScoreModal';
 import CloseoutReportModal from './CloseoutReportModal';
 
-export default function Dashboard({ dashboardData, onRefresh, t, isLoading }) {
+export default function Dashboard({ dashboardData, onRefresh, t, isLoading, currentUser }) {
   const [showCreditModal, setShowCreditModal] = useState(false);
   const [showCloseoutModal, setShowCloseoutModal] = useState(false);
+  const [revenueSummary, setRevenueSummary] = useState({
+    weeklyTotal: 0,
+    monthlyTotal: 0,
+    yearlyTotal: 0,
+  });
+  const [revenueLoading, setRevenueLoading] = useState(true);
+  const [revenueError, setRevenueError] = useState(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchRevenue = async () => {
+      try {
+        setRevenueLoading(true);
+        setRevenueError(null);
+
+        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Africa/Addis_Ababa';
+        let ownerId = currentUser?._id;
+        if (!ownerId) {
+          try {
+            const saved = localStorage.getItem('suqsync_auth_user');
+            if (saved) ownerId = JSON.parse(saved)?._id;
+          } catch (e) {}
+        }
+
+        const params = new URLSearchParams();
+        if (tz) params.append('timezone', tz);
+        if (ownerId) params.append('ownerId', ownerId);
+
+        const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+        const res = await fetch(`${API_BASE}/api/sales/revenue-summary?${params.toString()}`, {
+          headers: {
+            'Content-Type': 'application/json',
+            ...(ownerId ? { 'x-owner-id': ownerId } : {}),
+            ...(tz ? { 'x-timezone': tz } : {})
+          },
+          signal: AbortSignal.timeout(5000)
+        });
+
+        if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+        const result = await res.json();
+
+        if (isMounted) {
+          setRevenueSummary({
+            weeklyTotal: Number(result.weeklyTotal || 0),
+            monthlyTotal: Number(result.monthlyTotal || 0),
+            yearlyTotal: Number(result.yearlyTotal || 0),
+          });
+        }
+      } catch (err) {
+        console.warn('Revenue summary API note:', err.message);
+        if (isMounted) {
+          try {
+            const localSales = JSON.parse(localStorage.getItem('suqsync_local_sales') || '[]');
+            const now = new Date();
+            const dayOfWeek = now.getDay();
+            const diffToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+            const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - diffToMonday, 0, 0, 0, 0);
+            const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+            const startOfYear = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0);
+
+            let weeklyTotal = 0;
+            let monthlyTotal = 0;
+            let yearlyTotal = 0;
+
+            const salesToScan = (localSales.length > 0) ? localSales : (dashboardData?.data?.recentTransactions || []);
+
+            for (const s of salesToScan) {
+              if (s.paymentStatus !== 'Paid') continue;
+              const amt = Number(s.totalPrice ?? s.totalAmount) || 0;
+              const sDate = s.createdAt ? new Date(s.createdAt) : new Date();
+
+              if (sDate >= startOfYear) yearlyTotal += amt;
+              if (sDate >= startOfMonth) monthlyTotal += amt;
+              if (sDate >= startOfWeek) weeklyTotal += amt;
+            }
+
+            setRevenueSummary({
+              weeklyTotal: Math.round(weeklyTotal * 100) / 100,
+              monthlyTotal: Math.round(monthlyTotal * 100) / 100,
+              yearlyTotal: Math.round(yearlyTotal * 100) / 100,
+            });
+          } catch (e) {
+            setRevenueError(err.message);
+          }
+        }
+      } finally {
+        if (isMounted) {
+          setRevenueLoading(false);
+        }
+      }
+    };
+
+    fetchRevenue();
+    return () => { isMounted = false; };
+  }, [dashboardData, currentUser]);
 
   const data = dashboardData?.data || {
     totalRevenue: 0,
@@ -372,6 +468,162 @@ export default function Dashboard({ dashboardData, onRefresh, t, isLoading }) {
           </div>
         </div>
 
+      </div>
+
+      {/* Business Performance Section (Weekly, Monthly, Yearly Revenue) */}
+      <div className="bg-white rounded-3xl p-5 sm:p-6 shadow-sm border border-slate-200/90 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+          <div>
+            <h3 className="font-extrabold text-slate-900 text-sm sm:text-base flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+              <span>Business Performance</span>
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Settled revenue totals for the current week, month, and year (Paid sales only)
+            </p>
+          </div>
+          {revenueLoading ? (
+            <div className="flex items-center gap-1.5 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200/70 px-2.5 py-1 rounded-full font-semibold">
+              <div className="w-3 h-3 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
+              <span>Fetching Revenue...</span>
+            </div>
+          ) : (
+            <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+              Real-time Summaries
+            </div>
+          )}
+        </div>
+
+        {/* 3 Summary Cards: Weekly, Monthly, Yearly */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 sm:gap-4">
+          
+          {/* Card 1: Weekly Revenue */}
+          <div className="bg-gradient-to-br from-slate-50 to-white rounded-2xl p-4 sm:p-5 border border-slate-200 hover:border-emerald-300 hover:shadow-md transition-all flex flex-col justify-between relative group">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                  Current Week
+                </span>
+                <h4 className="text-sm font-bold text-slate-800 mt-0.5">Weekly Revenue</h4>
+              </div>
+              <div className="w-9 h-9 rounded-xl bg-emerald-100/80 text-emerald-700 flex items-center justify-center font-bold shadow-xs group-hover:scale-105 transition-transform">
+                <Calendar className="w-4 h-4" />
+              </div>
+            </div>
+
+            <div className="my-3">
+              {revenueLoading ? (
+                <div className="space-y-2 py-1">
+                  <div className="h-8 bg-slate-200/70 rounded-xl animate-pulse w-32"></div>
+                  <div className="h-3 bg-slate-100 rounded-md animate-pulse w-24"></div>
+                </div>
+              ) : (
+                <>
+                  <div className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight flex items-baseline gap-1.5">
+                    {revenueSummary.weeklyTotal.toLocaleString()}
+                    <span className="text-xs font-bold text-emerald-600 uppercase">{t.currency}</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1">
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                    Current calendar week
+                  </p>
+                </>
+              )}
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+              <span className="text-slate-500 font-medium text-[11px]">Settled volume</span>
+              <span className="font-extrabold text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-2 py-0.5 rounded-full text-[10px]">
+                Paid Strictly
+              </span>
+            </div>
+          </div>
+
+          {/* Card 2: Monthly Revenue */}
+          <div className="bg-gradient-to-br from-slate-50 to-white rounded-2xl p-4 sm:p-5 border border-slate-200 hover:border-sky-300 hover:shadow-md transition-all flex flex-col justify-between relative group">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                  Current Month
+                </span>
+                <h4 className="text-sm font-bold text-slate-800 mt-0.5">Monthly Revenue</h4>
+              </div>
+              <div className="w-9 h-9 rounded-xl bg-sky-100/80 text-sky-700 flex items-center justify-center font-bold shadow-xs group-hover:scale-105 transition-transform">
+                <TrendingUp className="w-4 h-4" />
+              </div>
+            </div>
+
+            <div className="my-3">
+              {revenueLoading ? (
+                <div className="space-y-2 py-1">
+                  <div className="h-8 bg-slate-200/70 rounded-xl animate-pulse w-32"></div>
+                  <div className="h-3 bg-slate-100 rounded-md animate-pulse w-24"></div>
+                </div>
+              ) : (
+                <>
+                  <div className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight flex items-baseline gap-1.5">
+                    {revenueSummary.monthlyTotal.toLocaleString()}
+                    <span className="text-xs font-bold text-sky-600 uppercase">{t.currency}</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1">
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-sky-500"></span>
+                    Current calendar month
+                  </p>
+                </>
+              )}
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+              <span className="text-slate-500 font-medium text-[11px]">Settled volume</span>
+              <span className="font-extrabold text-sky-700 bg-sky-50 border border-sky-200/60 px-2 py-0.5 rounded-full text-[10px]">
+                Paid Strictly
+              </span>
+            </div>
+          </div>
+
+          {/* Card 3: Yearly Revenue */}
+          <div className="bg-gradient-to-br from-slate-50 to-white rounded-2xl p-4 sm:p-5 border border-slate-200 hover:border-purple-300 hover:shadow-md transition-all flex flex-col justify-between relative group">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                  Current Year
+                </span>
+                <h4 className="text-sm font-bold text-slate-800 mt-0.5">Yearly Revenue</h4>
+              </div>
+              <div className="w-9 h-9 rounded-xl bg-purple-100/80 text-purple-700 flex items-center justify-center font-bold shadow-xs group-hover:scale-105 transition-transform">
+                <Award className="w-4 h-4" />
+              </div>
+            </div>
+
+            <div className="my-3">
+              {revenueLoading ? (
+                <div className="space-y-2 py-1">
+                  <div className="h-8 bg-slate-200/70 rounded-xl animate-pulse w-32"></div>
+                  <div className="h-3 bg-slate-100 rounded-md animate-pulse w-24"></div>
+                </div>
+              ) : (
+                <>
+                  <div className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight flex items-baseline gap-1.5">
+                    {revenueSummary.yearlyTotal.toLocaleString()}
+                    <span className="text-xs font-bold text-purple-600 uppercase">{t.currency}</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1">
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-purple-500"></span>
+                    Current calendar year
+                  </p>
+                </>
+              )}
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+              <span className="text-slate-500 font-medium text-[11px]">Settled volume</span>
+              <span className="font-extrabold text-purple-700 bg-purple-50 border border-purple-200/60 px-2 py-0.5 rounded-full text-[10px]">
+                Paid Strictly
+              </span>
+            </div>
+          </div>
+
+        </div>
       </div>
 
       {/* Cash Drawer vs Digital Banking Macro Reconciliation Bar */}

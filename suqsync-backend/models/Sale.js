@@ -9,6 +9,7 @@ export const ALLOWED_PAYMENT_METHODS = [
   'Awash Bank',
   'Sinqee Bank',
   'Abyssinia Bank',
+  'Credit',
   'Other'
 ];
 
@@ -24,16 +25,23 @@ const saleSchema = new mongoose.Schema({
   quantitySold: {
     type: Number,
     required: [true, 'Quantity sold is required'],
-    min: [1, 'Must sell at least 1 unit'],
+    min: [0.001, 'Must sell greater than 0 units'],
   },
   unitPrice: {
     type: Number,
     required: true,
   },
+  totalPrice: {
+    type: Number,
+    min: [0, 'Total price cannot be negative'],
+  },
   totalAmount: {
     type: Number,
-    required: [true, 'Total amount is required'],
     min: [0, 'Total amount cannot be negative'],
+  },
+  ownerId: {
+    type: mongoose.Schema.Types.Mixed,
+    index: true,
   },
   paymentMethod: {
     type: String,
@@ -43,8 +51,28 @@ const saleSchema = new mongoose.Schema({
       message: '{VALUE} is not a supported payment method'
     },
   },
+  paymentStatus: {
+    type: String,
+    enum: ['Paid', 'Credit'],
+    default: 'Paid',
+  },
+  customerName: {
+    type: String,
+    trim: true,
+  },
 }, {
   timestamps: true,
+});
+
+// Ensure totalPrice and totalAmount are in sync
+saleSchema.pre('validate', function(next) {
+  if (this.totalPrice == null && this.totalAmount != null) {
+    this.totalPrice = this.totalAmount;
+  }
+  if (this.totalAmount == null && this.totalPrice != null) {
+    this.totalAmount = this.totalPrice;
+  }
+  next();
 });
 
 export const Sale = mongoose.models.Sale || mongoose.model('Sale', saleSchema);

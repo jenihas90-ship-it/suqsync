@@ -364,12 +364,101 @@ export async function deleteProduct(id) {
 
 // ---- SALES ----
 
-export async function recordSale({ productId, quantitySold, paymentMethod, paymentStatus = 'Paid', customerName = '' }) {
+// Calculate revenue summary offline from local sales
+function calculateLocalRevenueSummary(ownerId) {
+  const sales = getLocalSales();
+  const now = new Date();
+  
+  // Local period boundaries
+  const dayOfWeek = now.getDay();
+  const diffToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - diffToMonday, 0, 0, 0, 0);
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+  const startOfYear = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0);
+
+  let weeklyTotal = 0;
+  let monthlyTotal = 0;
+  let yearlyTotal = 0;
+
+  for (const s of sales) {
+    if (s.paymentStatus !== 'Paid') continue;
+    if (ownerId && s.ownerId && String(s.ownerId) !== String(ownerId)) continue;
+
+    const amt = Number(s.totalPrice ?? s.totalAmount) || 0;
+    const sDate = s.createdAt ? new Date(s.createdAt) : new Date();
+
+    if (sDate >= startOfYear) {
+      yearlyTotal += amt;
+    }
+    if (sDate >= startOfMonth) {
+      monthlyTotal += amt;
+    }
+    if (sDate >= startOfWeek) {
+      weeklyTotal += amt;
+    }
+  }
+
+  return {
+    weeklyTotal: Math.round(weeklyTotal * 100) / 100,
+    monthlyTotal: Math.round(monthlyTotal * 100) / 100,
+    yearlyTotal: Math.round(yearlyTotal * 100) / 100,
+  };
+}
+
+export async function fetchRevenueSummary(ownerId) {
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Africa/Addis_Ababa';
+    let effectiveOwnerId = ownerId;
+    if (!effectiveOwnerId) {
+      try {
+        const saved = localStorage.getItem('suqsync_auth_user');
+        if (saved) effectiveOwnerId = JSON.parse(saved)?._id;
+      } catch (e) {}
+    }
+
+    const params = new URLSearchParams();
+    if (tz) params.append('timezone', tz);
+    if (effectiveOwnerId) params.append('ownerId', effectiveOwnerId);
+
+    const res = await fetch(`${API_BASE}/api/sales/revenue-summary?${params.toString()}`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...(effectiveOwnerId ? { 'x-owner-id': effectiveOwnerId } : {}),
+        ...(tz ? { 'x-timezone': tz } : {})
+      },
+      signal: AbortSignal.timeout(5000)
+    });
+
+    if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+    const data = await res.json();
+    return {
+      weeklyTotal: Number(data.weeklyTotal || 0),
+      monthlyTotal: Number(data.monthlyTotal || 0),
+      yearlyTotal: Number(data.yearlyTotal || 0),
+    };
+  } catch (err) {
+    console.warn('Backend revenue summary fetch failed, using local fallback:', err);
+    return calculateLocalRevenueSummary(ownerId);
+  }
+}
+
+export async function recordSale({ productId, quantitySold, paymentMethod, paymentStatus = 'Paid', customerName = '', ownerId }) {
+  let effectiveOwnerId = ownerId;
+  if (!effectiveOwnerId) {
+    try {
+      const saved = localStorage.getItem('suqsync_auth_user');
+      if (saved) effectiveOwnerId = JSON.parse(saved)?._id;
+    } catch (e) {}
+  }
+
   try {
     const res = await fetch(`${API_BASE}/api/sales`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ productId, quantitySold, paymentMethod, paymentStatus, customerName }),
+      headers: { 
+        'Content-Type': 'application/json',
+        ...(effectiveOwnerId ? { 'x-owner-id': effectiveOwnerId } : {})
+      },
+      body: JSON.stringify({ productId, quantitySold, paymentMethod, paymentStatus, customerName, ownerId: effectiveOwnerId }),
       signal: AbortSignal.timeout(4500)
     });
     const json = await res.json();
@@ -387,16 +476,19 @@ export async function recordSale({ productId, quantitySold, paymentMethod, payme
     prod.stockQty = Math.max(0, Math.round((prod.stockQty - quantitySold) * 1000) / 1000);
     saveLocalProducts(products);
 
+    const totalAmount = Math.round((prod.price * Number(quantitySold)) * 100) / 100;
     const newSale = {
       _id: 'sale_' + Date.now(),
       productId,
       productName: prod.name,
       quantitySold: Number(quantitySold),
       unitPrice: prod.price,
-      totalAmount: Math.round((prod.price * Number(quantitySold)) * 100) / 100,
+      totalPrice: totalAmount,
+      totalAmount,
       paymentMethod: paymentMethod || (paymentStatus === 'Credit' ? 'Credit' : 'Cash'),
       paymentStatus: paymentStatus === 'Credit' ? 'Credit' : 'Paid',
       customerName: customerName ? customerName.trim() : undefined,
+      ownerId: effectiveOwnerId || undefined,
       createdAt: new Date().toISOString()
     };
 

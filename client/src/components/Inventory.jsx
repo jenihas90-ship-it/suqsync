@@ -304,7 +304,7 @@ export default function Inventory({ products, onAddProduct, onUpdateStock, onDel
               </button>
             </div>
 
-            <form onSubmit={handleFormSubmit} className="p-5 space-y-3.5">
+            <form onSubmit={handleFormSubmit} noValidate className="p-5 space-y-3.5">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
                   {t.inventory.productName} *
@@ -328,7 +328,7 @@ export default function Inventory({ products, onAddProduct, onUpdateStock, onDel
                     type="number"
                     required
                     min="0"
-                    step="0.5"
+                    step="any"
                     placeholder="e.g. 150"
                     value={formData.price}
                     onChange={(e) => setFormData({ ...formData, price: e.target.value })}
@@ -344,6 +344,7 @@ export default function Inventory({ products, onAddProduct, onUpdateStock, onDel
                     type="number"
                     required
                     min="0"
+                    step="any"
                     placeholder="e.g. 25"
                     value={formData.stockQty}
                     onChange={(e) => setFormData({ ...formData, stockQty: e.target.value })}
