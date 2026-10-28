@@ -91,6 +91,50 @@ export default function CreditBook({ t = { currency: 'ETB' }, onNavigate, showTo
     }
   };
 
+  const handleAddSampleCredit = () => {
+    const sampleNames = ['Abebe Kebede', 'Tadesse Gemechu', 'Almaz Bekele', 'Chala Dejene', 'Kassahun Belay'];
+    const randomName = sampleNames[Math.floor(Math.random() * sampleNames.length)];
+    const sampleItems = [
+      { name: 'Soofii Soft Drink', price: 80, qty: 2 },
+      { name: 'Buna (Coffee Beans)', price: 25, qty: 4 },
+      { name: 'Injera (Fresh 5-pack)', price: 140, qty: 1 },
+      { name: 'Highland Water 500ml', price: 25, qty: 6 }
+    ];
+    const item = sampleItems[Math.floor(Math.random() * sampleItems.length)];
+    const totalAmt = item.price * item.qty;
+
+    const newSale = {
+      _id: 'sale_' + Date.now(),
+      productId: 'prod_' + Date.now(),
+      productName: item.name,
+      quantitySold: item.qty,
+      unitPrice: item.price,
+      totalPrice: totalAmt,
+      totalAmount: totalAmt,
+      paymentMethod: 'Credit',
+      paymentStatus: 'Credit',
+      customerName: randomName,
+      createdAt: new Date().toISOString()
+    };
+
+    const localSales = JSON.parse(localStorage.getItem('suqsync_local_sales') || '[]');
+    localStorage.setItem('suqsync_local_sales', JSON.stringify([newSale, ...localSales]));
+
+    setCreditSales(prev => [newSale, ...prev]);
+    setFilterMode('all');
+
+    setCreditSummary(prev => ({
+      dailyTotal: prev.dailyTotal + totalAmt,
+      weeklyTotal: prev.weeklyTotal + totalAmt,
+      monthlyTotal: prev.monthlyTotal + totalAmt,
+      yearlyTotal: prev.yearlyTotal + totalAmt,
+    }));
+
+    if (showToast) {
+      showToast(`✓ Added credit debt of ${totalAmt} ETB for ${randomName}. Click "Pay Now" to test!`, 'success');
+    }
+  };
+
   const activeCredits = creditSales.filter(s => s.paymentStatus !== 'Paid');
   const settledCredits = creditSales.filter(s => s.paymentStatus === 'Paid');
 
@@ -383,6 +427,15 @@ export default function CreditBook({ t = { currency: 'ETB' }, onNavigate, showTo
           </div>
 
           <button
+            onClick={handleAddSampleCredit}
+            className="p-2 sm:px-3 py-2.5 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-bold shadow-2xs"
+            title="Create a sample credit customer to test Pay Now"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+            <span className="hidden sm:inline">Add Demo Debt</span>
+          </button>
+
+          <button
             onClick={loadCreditsAndSummary}
             disabled={isLoading || summaryLoading}
             className="p-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-bold"
@@ -419,13 +472,22 @@ export default function CreditBook({ t = { currency: 'ETB' }, onNavigate, showTo
               There are no unpaid credit sales. All customer debts are currently cleared.
             </p>
           </div>
-          <button
-            onClick={() => onNavigate?.('pos')}
-            className="py-2.5 px-6 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition-all cursor-pointer inline-flex items-center gap-2"
-          >
-            <span>Record New Sale</span>
-            <ArrowRight className="w-4 h-4" />
-          </button>
+          <div className="flex items-center justify-center gap-3 flex-wrap pt-2">
+            <button
+              onClick={handleAddSampleCredit}
+              className="py-2.5 px-5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs transition-all cursor-pointer inline-flex items-center gap-2 shadow-md shadow-amber-600/20"
+            >
+              <Sparkles className="w-4 h-4" />
+              <span>Add Demo Debt to Test "Pay Now"</span>
+            </button>
+            <button
+              onClick={() => onNavigate?.('pos')}
+              className="py-2.5 px-5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition-all cursor-pointer inline-flex items-center gap-2"
+            >
+              <span>Record Sale in POS</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       ) : filteredSales.length === 0 ? (
         <div className="bg-white rounded-2xl p-10 text-center border border-slate-200 text-slate-500 text-xs">

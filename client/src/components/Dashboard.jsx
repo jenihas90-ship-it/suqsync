@@ -20,14 +20,18 @@ import {
   ArrowUpRight,
   BookOpen,
   User,
-  Calendar
+  Calendar,
+  CheckCircle2
 } from 'lucide-react';
 import CreditScoreModal from './CreditScoreModal';
 import CloseoutReportModal from './CloseoutReportModal';
+import { settleCreditSale } from '../api';
+import { soundFX } from '../utils/audio';
 
-export default function Dashboard({ dashboardData, onRefresh, t, isLoading, currentUser }) {
+export default function Dashboard({ dashboardData, onRefresh, t, isLoading, currentUser, onNavigate, showToast }) {
   const [showCreditModal, setShowCreditModal] = useState(false);
   const [showCloseoutModal, setShowCloseoutModal] = useState(false);
+  const [settlingDebtId, setSettlingDebtId] = useState(null);
   const [revenueSummary, setRevenueSummary] = useState({
     weeklyTotal: 0,
     monthlyTotal: 0,
@@ -35,6 +39,23 @@ export default function Dashboard({ dashboardData, onRefresh, t, isLoading, curr
   });
   const [revenueLoading, setRevenueLoading] = useState(true);
   const [revenueError, setRevenueError] = useState(null);
+
+  const handleDashboardSettle = async (txId, customerName, totalAmount) => {
+    try {
+      setSettlingDebtId(txId);
+      await settleCreditSale(txId);
+      soundFX?.playSaleSuccess?.();
+      if (showToast) {
+        showToast(`✓ Credit debt of ${totalAmount || ''} ETB for ${customerName || 'Customer'} marked as Paid!`, 'success');
+      }
+      if (onRefresh) await onRefresh();
+    } catch (err) {
+      console.error('Failed to settle credit debt on dashboard:', err);
+      if (showToast) showToast(err.message || 'Failed to settle debt', 'error');
+    } finally {
+      setSettlingDebtId(null);
+    }
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -846,6 +867,14 @@ export default function Dashboard({ dashboardData, onRefresh, t, isLoading, curr
                   .reduce((acc, s) => acc + (Number(s.totalAmount) || 0), 0)
                   .toLocaleString()} {t.currency}
               </span>
+              {onNavigate && (
+                <button
+                  onClick={() => onNavigate('credit-book')}
+                  className="hidden sm:inline-flex items-center gap-1 text-xs font-bold text-amber-900 hover:text-amber-950 underline cursor-pointer"
+                >
+                  <span>Credit Book &rarr;</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -863,11 +892,11 @@ export default function Dashboard({ dashboardData, onRefresh, t, isLoading, curr
                         {tx.customerName || 'Anonymous Customer'}
                       </span>
                       {tx.paymentStatus === 'Paid' ? (
-                        <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-100 border border-emerald-300 px-1.5 py-0.5 rounded inline-flex items-center gap-1 w-fit my-0.5">
+                        <span className="text-[10px] font-black text-emerald-800 bg-emerald-100 border border-emerald-300 px-1.5 py-0.5 rounded inline-flex items-center gap-1 w-fit my-0.5">
                           ✓ Paid
                         </span>
                       ) : (
-                        <span className="text-[10px] font-extrabold text-amber-700 bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded inline-flex items-center gap-1 w-fit my-0.5">
+                        <span className="text-[10px] font-black text-amber-800 bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded inline-flex items-center gap-1 w-fit my-0.5">
                           ⏳ Credit
                         </span>
                       )}
@@ -876,13 +905,32 @@ export default function Dashboard({ dashboardData, onRefresh, t, isLoading, curr
                       </span>
                     </div>
                   </div>
-                  <div className="text-right shrink-0">
+                  <div className="text-right shrink-0 flex flex-col items-end gap-1">
                     <span className="font-black text-xs text-amber-700 block">
                       {tx.totalAmount} {t.currency}
                     </span>
-                    <span className="text-[10px] font-bold text-amber-600 block">
-                      {tx.paymentStatus === 'Paid' ? '✓ Paid' : '⏳ Credit Debt'}
-                    </span>
+                    {tx.paymentStatus === 'Paid' ? (
+                      <span className="text-[10px] font-black text-emerald-800 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-full inline-flex items-center gap-1 shadow-2xs">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                        <span>Paid</span>
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => handleDashboardSettle(tx._id, tx.customerName, tx.totalAmount)}
+                        disabled={settlingDebtId === tx._id}
+                        className="py-1 px-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-black text-[11px] rounded-lg shadow-sm transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1"
+                        title="Pay credit debt now"
+                      >
+                        {settlingDebtId === tx._id ? (
+                          <span className="inline-block w-3 h-3 border border-white border-t-transparent rounded-full animate-spin"></span>
+                        ) : (
+                          <>
+                            <CheckCircle2 className="w-3 h-3" />
+                            <span>Pay Now</span>
+                          </>
+                        )}
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}

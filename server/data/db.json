@@ -33,6 +33,36 @@
   ],
   "sales": [
     {
+      "_id": "sale_credit_001",
+      "productId": "prod_1792785018896",
+      "productName": "Soofii",
+      "quantitySold": 2,
+      "unitPrice": 80,
+      "totalPrice": 160,
+      "totalAmount": 160,
+      "paymentMethod": "Credit",
+      "paymentStatus": "Credit",
+      "customerName": "Abebe Kebede",
+      "ownerId": "user_1792784786781",
+      "createdAt": "2026-10-28T09:15:00.000Z",
+      "updatedAt": "2026-10-28T09:15:00.000Z"
+    },
+    {
+      "_id": "sale_credit_002",
+      "productId": "prod_1792784933564",
+      "productName": "Buna",
+      "quantitySold": 4,
+      "unitPrice": 25,
+      "totalPrice": 100,
+      "totalAmount": 100,
+      "paymentMethod": "Credit",
+      "paymentStatus": "Credit",
+      "customerName": "Tadesse Gemechu",
+      "ownerId": "user_1792784786781",
+      "createdAt": "2026-10-28T10:45:00.000Z",
+      "updatedAt": "2026-10-28T10:45:00.000Z"
+    },
+    {
       "_id": "sale_1793042768900",
       "productId": "prod_1792785018896",
       "productName": "Soofii",

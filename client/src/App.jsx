@@ -722,6 +722,8 @@ function SuqSyncApp() {
                   t={t}
                   isLoading={isLoading}
                   currentUser={currentUser}
+                  onNavigate={(tab) => setActiveTab(tab)}
+                  showToast={showToast}
                 />
               )}
 
