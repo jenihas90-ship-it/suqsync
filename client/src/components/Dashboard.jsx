@@ -862,6 +862,15 @@ export default function Dashboard({ dashboardData, onRefresh, t, isLoading, curr
                       <span className="font-black text-slate-900 text-xs block truncate">
                         {tx.customerName || 'Anonymous Customer'}
                       </span>
+                      {tx.paymentStatus === 'Paid' ? (
+                        <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-100 border border-emerald-300 px-1.5 py-0.5 rounded inline-flex items-center gap-1 w-fit my-0.5">
+                          ✓ Paid
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-extrabold text-amber-700 bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded inline-flex items-center gap-1 w-fit my-0.5">
+                          ⏳ Credit
+                        </span>
+                      )}
                       <span className="text-[11px] text-slate-500 truncate block">
                         {tx.productName} ({tx.quantitySold} unit)
                       </span>
