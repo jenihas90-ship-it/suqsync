@@ -511,10 +511,87 @@ export async function fetchCreditSales() {
   }
 }
 
-// Mark a specific credit sale as Paid
-export async function markCreditSalePaid(saleId) {
+function calculateLocalCreditSummary(ownerId) {
+  const sales = getLocalSales();
+  const now = new Date();
+
+  // Local period boundaries
+  const dayOfWeek = now.getDay();
+  const diffToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+  const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - diffToMonday, 0, 0, 0, 0);
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+  const startOfYear = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0);
+
+  let dailyTotal = 0;
+  let weeklyTotal = 0;
+  let monthlyTotal = 0;
+  let yearlyTotal = 0;
+
+  for (const s of sales) {
+    if (s.paymentStatus !== 'Credit') continue;
+    if (ownerId && s.ownerId && String(s.ownerId) !== String(ownerId)) continue;
+
+    const amt = Number(s.totalPrice ?? s.totalAmount) || 0;
+    const sDate = s.createdAt ? new Date(s.createdAt) : new Date();
+
+    if (sDate >= startOfYear) yearlyTotal += amt;
+    if (sDate >= startOfMonth) monthlyTotal += amt;
+    if (sDate >= startOfWeek) weeklyTotal += amt;
+    if (sDate >= startOfDay) dailyTotal += amt;
+  }
+
+  return {
+    dailyTotal: Math.round(dailyTotal * 100) / 100,
+    weeklyTotal: Math.round(weeklyTotal * 100) / 100,
+    monthlyTotal: Math.round(monthlyTotal * 100) / 100,
+    yearlyTotal: Math.round(yearlyTotal * 100) / 100,
+  };
+}
+
+// Fetch daily, weekly, monthly, and yearly totals specifically for unpaid credit
+export async function fetchCreditSummary(ownerId) {
   try {
-    const res = await fetch(`${API_BASE}/api/sales/${saleId}/mark-paid`, {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Africa/Addis_Ababa';
+    let effectiveOwnerId = ownerId;
+    if (!effectiveOwnerId) {
+      try {
+        const saved = localStorage.getItem('suqsync_auth_user');
+        if (saved) effectiveOwnerId = JSON.parse(saved)?._id;
+      } catch (e) {}
+    }
+
+    const params = new URLSearchParams();
+    if (tz) params.append('timezone', tz);
+    if (effectiveOwnerId) params.append('ownerId', effectiveOwnerId);
+
+    const res = await fetch(`${API_BASE}/api/sales/credit-summary?${params.toString()}`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...(effectiveOwnerId ? { 'x-owner-id': effectiveOwnerId } : {}),
+        ...(tz ? { 'x-timezone': tz } : {})
+      },
+      signal: AbortSignal.timeout(5000)
+    });
+
+    if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+    const data = await res.json();
+    return {
+      dailyTotal: Number(data.dailyTotal || 0),
+      weeklyTotal: Number(data.weeklyTotal || 0),
+      monthlyTotal: Number(data.monthlyTotal || 0),
+      yearlyTotal: Number(data.yearlyTotal || 0),
+    };
+  } catch (err) {
+    console.warn('Backend credit summary fetch failed, using local fallback:', err);
+    return calculateLocalCreditSummary(ownerId);
+  }
+}
+
+// Settle customer credit debt (PUT /api/sales/:id/settle-credit)
+export async function settleCreditSale(saleId) {
+  try {
+    const res = await fetch(`${API_BASE}/api/sales/${saleId}/settle-credit`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       signal: AbortSignal.timeout(4500)
@@ -523,6 +600,9 @@ export async function markCreditSalePaid(saleId) {
     if (!res.ok || !json.success) {
       throw new Error(json.message || 'Failed to settle debt');
     }
+    const sales = getLocalSales();
+    const updated = sales.map(s => s._id === saleId ? { ...s, paymentStatus: 'Paid' } : s);
+    saveLocalSales(updated);
     return json.data;
   } catch (err) {
     const sales = getLocalSales();
@@ -531,6 +611,9 @@ export async function markCreditSalePaid(saleId) {
     return updated.find(s => s._id === saleId);
   }
 }
+
+// Backward-compatible alias
+export const markCreditSalePaid = settleCreditSale;
 
 // ---- DASHBOARD & HEALTH ----
 

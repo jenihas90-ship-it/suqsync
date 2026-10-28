@@ -183,10 +183,10 @@ export default function Navbar({
             ))}
           </div>
 
-          {/* Step 2: Hamburger Icon (3 horizontal lines) using SVG to toggle menu */}
+          {/* Step 2: Hamburger Icon (3 horizontal lines) - Only displays on mobile screens and completely hidden on desktop */}
           <button
             onClick={() => setIsOpen(prev => !prev)}
-            className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
+            className="block md:hidden p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
             aria-label="Toggle navigation menu"
             aria-expanded={isOpen}
           >
@@ -208,9 +208,9 @@ export default function Navbar({
         </div>
       </div>
 
-      {/* Step 3: Hidden menu that drops down cleanly on mobile screens with React Router <Link> components */}
+      {/* Step 3: Mobile-only menu that drops down cleanly with React Router <Link> components */}
       {isOpen && (
-        <div className="bg-slate-900/95 border-t border-slate-800 backdrop-blur-md px-4 py-3 shadow-xl transition-all duration-200">
+        <div className="md:hidden bg-slate-900/95 border-t border-slate-800 backdrop-blur-md px-4 py-3 shadow-xl transition-all duration-200">
           <div className="max-w-6xl mx-auto space-y-1">
             <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-3 pb-1">
               Menu Navigation

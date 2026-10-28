@@ -66,6 +66,52 @@ router.get('/', async (req, res) => {
   }
 });
 
+// GET /api/sales/credit-summary - Daily, weekly, monthly, and yearly totals for unpaid credit
+router.get('/credit-summary', async (req, res) => {
+  try {
+    // 1. Resolve logged-in ownerId
+    let ownerId = req.user?._id || req.user?.id || req.user?.ownerId || req.ownerId || req.query.ownerId || req.headers['x-owner-id'] || req.headers['owner-id'];
+
+    if (!ownerId && req.headers.authorization) {
+      try {
+        const rawToken = typeof req.headers.authorization === 'string' && req.headers.authorization.startsWith('Bearer ')
+          ? req.headers.authorization.slice(7).trim()
+          : String(req.headers.authorization).trim();
+        const decoded = jwt.decode(rawToken);
+        if (decoded) {
+          ownerId = decoded.ownerId || decoded._id || decoded.id || decoded.userId || decoded.sub;
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    if (!ownerId) {
+      const activeMerchant = await DataStore.getRegisteredMerchant();
+      if (activeMerchant?._id) {
+        ownerId = activeMerchant._id;
+      }
+    }
+
+    // 2. Resolve client/local timezone
+    const clientTz = req.query.timezone || req.headers['x-timezone'] || process.env.TIMEZONE || 'Africa/Addis_Ababa';
+    const boundaries = getLocalPeriodBoundaries(clientTz);
+
+    // 3. Compute credit totals
+    const totals = await DataStore.getCreditSummary({ ownerId, boundaries });
+
+    return res.json({
+      dailyTotal: Number(totals.dailyTotal || 0),
+      weeklyTotal: Number(totals.weeklyTotal || 0),
+      monthlyTotal: Number(totals.monthlyTotal || 0),
+      yearlyTotal: Number(totals.yearlyTotal || 0),
+    });
+  } catch (error) {
+    console.error('Error fetching credit summary:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // GET /api/sales/credit - Fetch all unpaid credit sales
 router.get('/credit', async (req, res) => {
   try {
@@ -81,7 +127,27 @@ router.get('/credit', async (req, res) => {
   }
 });
 
-// PUT /api/sales/:id/mark-paid - Mark a specific credit sale as Paid
+// PUT /api/sales/:id/settle-credit - Settle a customer credit debt (updates paymentStatus from 'Credit' to 'Paid')
+router.put('/:id/settle-credit', async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!id) {
+      return res.status(400).json({ success: false, message: 'Sale ID is required' });
+    }
+
+    const updatedSale = await DataStore.settleCredit(id);
+    res.json({
+      success: true,
+      message: 'Sale debt marked as Paid successfully',
+      data: updatedSale
+    });
+  } catch (error) {
+    console.error('Error settling credit debt:', error);
+    res.status(400).json({ success: false, message: error.message });
+  }
+});
+
+// Backward-compatible alias for marking sale as paid
 router.put('/:id/mark-paid', async (req, res) => {
   try {
     const { id } = req.params;
@@ -89,7 +155,7 @@ router.put('/:id/mark-paid', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Sale ID is required' });
     }
 
-    const updatedSale = await DataStore.markSalePaid(id);
+    const updatedSale = await DataStore.settleCredit(id);
     res.json({
       success: true,
       message: 'Sale debt marked as Paid successfully',

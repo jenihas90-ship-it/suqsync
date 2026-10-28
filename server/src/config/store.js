@@ -65,9 +65,10 @@ export function getLocalPeriodBoundaries(clientTz) {
   const diffToMonday = (dayOfWeek === 0 ? 6 : dayOfWeek - 1);
 
   const todayStart = parseLocalDateToUTC(year, month, day);
+  const startOfDay = todayStart;
   const startOfWeek = new Date(todayStart.getTime() - diffToMonday * 24 * 60 * 60 * 1000);
 
-  return { startOfWeek, startOfMonth, startOfYear };
+  return { startOfDay, startOfWeek, startOfMonth, startOfYear };
 }
 
 // SuqSync starts 100% clean and empty for the merchant
@@ -675,7 +676,7 @@ export const DataStore = {
     return (data.sales || []).filter(s => s.paymentStatus === 'Credit');
   },
 
-  async markSalePaid(saleId) {
+  async settleCredit(saleId) {
     if (getMongoStatus().connected) {
       const sale = await Sale.findById(saleId);
       if (!sale) throw new Error('Sale not found');
@@ -689,6 +690,126 @@ export const DataStore = {
     sale.updatedAt = new Date().toISOString();
     saveLocalData(data);
     return sale;
+  },
+
+  async markSalePaid(saleId) {
+    return await this.settleCredit(saleId);
+  },
+
+  async getCreditSummary({ ownerId, boundaries }) {
+    const { startOfDay, startOfWeek, startOfMonth, startOfYear } = boundaries;
+
+    if (getMongoStatus().connected) {
+      const matchConditions = {
+        paymentStatus: 'Credit',
+        createdAt: { $gte: startOfYear },
+      };
+
+      if (ownerId) {
+        const isOid = mongoose.Types.ObjectId.isValid(ownerId);
+        matchConditions.$or = isOid
+          ? [{ ownerId: new mongoose.Types.ObjectId(ownerId) }, { ownerId: String(ownerId) }]
+          : [{ ownerId: String(ownerId) }];
+      }
+
+      const pipeline = [
+        { $match: matchConditions },
+        {
+          $facet: {
+            yearly: [
+              {
+                $group: {
+                  _id: null,
+                  total: {
+                    $sum: {
+                      $ifNull: ['$totalPrice', { $ifNull: ['$totalAmount', 0] }]
+                    }
+                  }
+                }
+              }
+            ],
+            monthly: [
+              { $match: { createdAt: { $gte: startOfMonth } } },
+              {
+                $group: {
+                  _id: null,
+                  total: {
+                    $sum: {
+                      $ifNull: ['$totalPrice', { $ifNull: ['$totalAmount', 0] }]
+                    }
+                  }
+                }
+              }
+            ],
+            weekly: [
+              { $match: { createdAt: { $gte: startOfWeek } } },
+              {
+                $group: {
+                  _id: null,
+                  total: {
+                    $sum: {
+                      $ifNull: ['$totalPrice', { $ifNull: ['$totalAmount', 0] }]
+                    }
+                  }
+                }
+              }
+            ],
+            daily: [
+              { $match: { createdAt: { $gte: startOfDay } } },
+              {
+                $group: {
+                  _id: null,
+                  total: {
+                    $sum: {
+                      $ifNull: ['$totalPrice', { $ifNull: ['$totalAmount', 0] }]
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ];
+
+      const aggResult = await Sale.aggregate(pipeline);
+      const facet = aggResult[0] || {};
+
+      const dailyTotal = facet.daily?.[0]?.total ? Math.round(facet.daily[0].total * 100) / 100 : 0;
+      const weeklyTotal = facet.weekly?.[0]?.total ? Math.round(facet.weekly[0].total * 100) / 100 : 0;
+      const monthlyTotal = facet.monthly?.[0]?.total ? Math.round(facet.monthly[0].total * 100) / 100 : 0;
+      const yearlyTotal = facet.yearly?.[0]?.total ? Math.round(facet.yearly[0].total * 100) / 100 : 0;
+
+      return { dailyTotal, weeklyTotal, monthlyTotal, yearlyTotal };
+    }
+
+    // Local JSON Store Fallback
+    const data = loadLocalData();
+    const sales = data.sales || [];
+
+    let dailyTotal = 0;
+    let weeklyTotal = 0;
+    let monthlyTotal = 0;
+    let yearlyTotal = 0;
+
+    for (const sale of sales) {
+      if (sale.paymentStatus !== 'Credit') continue;
+      if (ownerId && sale.ownerId && String(sale.ownerId) !== String(ownerId)) continue;
+
+      const amt = Number(sale.totalPrice ?? sale.totalAmount) || 0;
+      const saleDate = sale.createdAt ? new Date(sale.createdAt) : new Date();
+
+      if (saleDate >= startOfYear) yearlyTotal += amt;
+      if (saleDate >= startOfMonth) monthlyTotal += amt;
+      if (saleDate >= startOfWeek) weeklyTotal += amt;
+      if (saleDate >= startOfDay) dailyTotal += amt;
+    }
+
+    return {
+      dailyTotal: Math.round(dailyTotal * 100) / 100,
+      weeklyTotal: Math.round(weeklyTotal * 100) / 100,
+      monthlyTotal: Math.round(monthlyTotal * 100) / 100,
+      yearlyTotal: Math.round(yearlyTotal * 100) / 100,
+    };
   },
 
   // ---- DASHBOARD & RECONCILIATION ----
