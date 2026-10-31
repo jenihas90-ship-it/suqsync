@@ -1,0 +1,18 @@
+{
+  "short_name": "SuqSync",
+  "name": "SuqSync: Ethiopian SME Inventory & POS",
+  "description": "Mobile-first POS & Inventory tracker tailored for Ethiopian suqs and cafes",
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#0f172a",
+  "background_color": "#0f172a",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

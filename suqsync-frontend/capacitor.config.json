@@ -1,0 +1,9 @@
+{
+  "appId": "com.suqsync.app",
+  "appName": "SuqSync",
+  "webDir": "dist",
+  "server": {
+    "url": "https://suqsync.vercel.app",
+    "cleartext": true
+  }
+}

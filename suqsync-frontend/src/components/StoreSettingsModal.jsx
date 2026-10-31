@@ -1,0 +1,446 @@
+import React, { useState, useEffect } from 'react';
+import QRCode from 'qrcode';
+import { 
+  Store, 
+  User, 
+  MapPin, 
+  Phone, 
+  Smartphone, 
+  Save, 
+  X, 
+  Download, 
+  Upload, 
+  Check, 
+  ShieldCheck,
+  RefreshCw,
+  RotateCcw,
+  LogOut,
+  QrCode,
+  Copy
+} from 'lucide-react';
+
+export default function StoreSettingsModal({ 
+  isOpen, 
+  onClose, 
+  storeProfile, 
+  onSaveProfile, 
+  onResetData,
+  onLogout,
+  products, 
+  sales, 
+  t 
+}) {
+  const [formData, setFormData] = useState({
+    storeName: '',
+    ownerName: '',
+    cashierName: '',
+    phone: '',
+    telebirrMerchantId: '',
+    cbeAccount: '',
+    city: 'Addis Ababa',
+    subcity: '',
+  });
+
+  const [savedSuccess, setSavedSuccess] = useState(false);
+  const [syncQrUrl, setSyncQrUrl] = useState('');
+  const [syncLinkCopied, setSyncLinkCopied] = useState(false);
+  const [showSyncView, setShowSyncView] = useState(false);
+
+  useEffect(() => {
+    if (storeProfile) {
+      setFormData(storeProfile);
+    }
+  }, [storeProfile, isOpen]);
+
+  const handleGenerateMobileSync = async () => {
+    try {
+      const localMerchantStr = localStorage.getItem('suqsync_local_merchant') || localStorage.getItem('suqsync_auth_user');
+      const merchant = localMerchantStr ? JSON.parse(localMerchantStr) : storeProfile;
+      const payload = {
+        merchant: {
+          ...merchant,
+          shopName: formData.storeName || merchant.shopName,
+          fullName: formData.ownerName || merchant.fullName,
+          phoneNumber: formData.phone || merchant.phoneNumber,
+          telebirrMerchantId: formData.telebirrMerchantId || merchant.telebirrMerchantId,
+          bankAccountNumber: formData.cbeAccount || merchant.bankAccountNumber,
+          city: formData.city || merchant.city,
+        },
+        products: products || []
+      };
+      const jsonStr = JSON.stringify(payload);
+      const encoded = btoa(encodeURIComponent(jsonStr));
+      const syncUrl = `${window.location.origin}${window.location.pathname}#sync=${encoded}`;
+      const qrDataUrl = await QRCode.toDataURL(syncUrl, { width: 260, margin: 1 });
+      setSyncQrUrl(qrDataUrl);
+      setShowSyncView(true);
+    } catch (err) {
+      console.error('Failed to generate sync QR:', err);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onSaveProfile(formData);
+    setSavedSuccess(true);
+    setTimeout(() => {
+      setSavedSuccess(false);
+      onClose();
+    }, 1200);
+  };
+
+  const handleExportSalesCSV = () => {
+    if (!sales || sales.length === 0) {
+      alert('No sales recorded to export yet.');
+      return;
+    }
+    const headers = ['Sale ID', 'Product', 'Quantity', 'Total ETB', 'Payment Method', 'Date Time'];
+    const rows = sales.map(s => [
+      s._id,
+      `"${s.productName || 'Item'}"`,
+      s.quantitySold,
+      s.totalAmount,
+      s.paymentMethod,
+      s.createdAt || new Date().toISOString()
+    ]);
+
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `SuqSync_Sales_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleExportInventoryCSV = () => {
+    if (!products || products.length === 0) {
+      alert('Your inventory is empty. No products to export.');
+      return;
+    }
+    const headers = ['Product ID', 'Name', 'Selling Price ETB', 'Current Stock Units', 'Unit Type', 'Category'];
+    const rows = products.map(p => [
+      p._id,
+      `"${p.name}"`,
+      p.price,
+      p.stockQty,
+      p.unit || 'pcs',
+      p.category || 'General'
+    ]);
+
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `SuqSync_Inventory_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-200 flex flex-col max-h-[92vh]">
+        
+        {/* Header */}
+        <div className="bg-gradient-to-r from-slate-900 via-emerald-950 to-slate-900 text-white p-5 flex items-center justify-between border-b border-emerald-900/40">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-emerald-500 text-white flex items-center justify-center font-black shadow-md">
+              <Store className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-extrabold text-base tracking-tight">Pilot Store Profile & Settings</h3>
+              <p className="text-xs text-slate-400">
+                Customizes store receipts, Telebirr merchant till, and cashier shift
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-slate-400 hover:text-white p-1 rounded-full hover:bg-white/10"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Form Body */}
+        <form onSubmit={handleSubmit} className="p-5 overflow-y-auto space-y-4 text-xs">
+          
+          {/* Store Identification */}
+          <div className="space-y-3">
+            <h4 className="font-bold text-slate-700 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+              <Store className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Store Information</span>
+            </h4>
+
+            <div>
+              <label className="block text-slate-600 font-semibold mb-1">Shop / Cafe Name *</label>
+              <input
+                type="text"
+                required
+                value={formData.storeName}
+                onChange={e => setFormData({ ...formData, storeName: e.target.value })}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-slate-900"
+                placeholder="e.g. Kidus Suq & Cafe, Bole"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-slate-600 font-semibold mb-1">City / Region</label>
+                <input
+                  type="text"
+                  value={formData.city}
+                  onChange={e => setFormData({ ...formData, city: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
+                  placeholder="e.g. Addis Ababa / Adama"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-600 font-semibold mb-1">Subcity / Neighborhood</label>
+                <input
+                  type="text"
+                  value={formData.subcity}
+                  onChange={e => setFormData({ ...formData, subcity: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
+                  placeholder="e.g. Bole Subcity, Woreda 03"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Personnel & Contact */}
+          <div className="space-y-3 pt-2 border-t border-slate-100">
+            <h4 className="font-bold text-slate-700 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+              <User className="w-3.5 h-3.5 text-sky-600" />
+              <span>Owner & Active Cashier</span>
+            </h4>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-slate-600 font-semibold mb-1">Owner Name</label>
+                <input
+                  type="text"
+                  value={formData.ownerName}
+                  onChange={e => setFormData({ ...formData, ownerName: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-600 font-semibold mb-1">Active Cashier on Duty</label>
+                <input
+                  type="text"
+                  value={formData.cashierName}
+                  onChange={e => setFormData({ ...formData, cashierName: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-slate-600 font-semibold mb-1">Merchant Contact Phone</label>
+              <input
+                type="text"
+                value={formData.phone}
+                onChange={e => setFormData({ ...formData, phone: e.target.value })}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
+                placeholder="+251 9..."
+              />
+            </div>
+          </div>
+
+          {/* Payment Integrations */}
+          <div className="space-y-3 pt-2 border-t border-slate-100">
+            <h4 className="font-bold text-slate-700 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+              <Smartphone className="w-3.5 h-3.5 text-amber-600" />
+              <span>Payment Details for Receipts</span>
+            </h4>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-slate-600 font-semibold mb-1">Telebirr Till / Merchant ID</label>
+                <input
+                  type="text"
+                  value={formData.telebirrMerchantId}
+                  onChange={e => setFormData({ ...formData, telebirrMerchantId: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono font-bold"
+                  placeholder="e.g. 984321"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-600 font-semibold mb-1">CBE Account Number</label>
+                <input
+                  type="text"
+                  value={formData.cbeAccount}
+                  onChange={e => setFormData({ ...formData, cbeAccount: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono font-bold"
+                  placeholder="e.g. 1000..."
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Export Ledger Data Buttons */}
+          <div className="pt-2 border-t border-slate-100 space-y-2">
+            <span className="font-bold text-slate-700 uppercase tracking-wider text-[11px] block">
+              Accounting & Export (CSV)
+            </span>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handleExportSalesCSV}
+                className="flex-1 py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+              >
+                <Download className="w-3.5 h-3.5 text-slate-600" />
+                <span>Export Sales CSV</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleExportInventoryCSV}
+                className="flex-1 py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+              >
+                <Download className="w-3.5 h-3.5 text-slate-600" />
+                <span>Export Stock CSV</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Save Profile Button */}
+          <div className="pt-2">
+            <button
+              type="submit"
+              className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-md shadow-emerald-600/30 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+            >
+              {savedSuccess ? (
+                <>
+                  <Check className="w-4 h-4 text-amber-300" />
+                  <span>Profile Saved Successfully!</span>
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4" />
+                  <span>Save Store Profile</span>
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* Connect & Sync to Android Phone */}
+          <div className="pt-2">
+            <button
+              type="button"
+              onClick={handleGenerateMobileSync}
+              className="w-full py-2.5 px-3 rounded-xl bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-900 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
+            >
+              <Smartphone className="w-4 h-4 text-sky-600" />
+              <span>Connect & Sync with Android Phone (ወደ ስልክ ማገናኛ QR)</span>
+            </button>
+          </div>
+
+          {/* Sync QR Modal / View */}
+          {showSyncView && (
+            <div className="p-4 bg-sky-50 border border-sky-200 rounded-2xl space-y-3 animate-in fade-in">
+              <div className="flex items-center justify-between">
+                <span className="font-extrabold text-sky-950 text-xs flex items-center gap-1.5">
+                  <Smartphone className="w-4 h-4 text-sky-600" />
+                  <span>Scan with Android Camera (ወደ ስልክ ማስተላለፊያ)</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowSyncView(false)}
+                  className="text-slate-400 hover:text-slate-600 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {syncQrUrl && (
+                <div className="flex flex-col items-center justify-center p-3 bg-white rounded-xl border border-sky-100 shadow-sm">
+                  <img src={syncQrUrl} alt="Mobile Sync QR Code" className="w-48 h-48 rounded-lg" />
+                  <p className="text-[11px] text-slate-600 mt-2 text-center max-w-xs font-medium">
+                    Point your Android camera at this QR code to instantly sync your shop & sign in on mobile.
+                  </p>
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  const localMerchantStr = localStorage.getItem('suqsync_local_merchant') || localStorage.getItem('suqsync_auth_user');
+                  const merchant = localMerchantStr ? JSON.parse(localMerchantStr) : storeProfile;
+                  const payload = {
+                    merchant: {
+                      ...merchant,
+                      shopName: formData.storeName || merchant.shopName,
+                      fullName: formData.ownerName || merchant.fullName,
+                      phoneNumber: formData.phone || merchant.phoneNumber,
+                      telebirrMerchantId: formData.telebirrMerchantId || merchant.telebirrMerchantId,
+                      bankAccountNumber: formData.cbeAccount || merchant.bankAccountNumber,
+                      city: formData.city || merchant.city,
+                    },
+                    products: products || []
+                  };
+                  const syncUrl = `${window.location.origin}${window.location.pathname}#sync=${btoa(encodeURIComponent(JSON.stringify(payload)))}`;
+                  navigator.clipboard.writeText(syncUrl);
+                  setSyncLinkCopied(true);
+                  setTimeout(() => setSyncLinkCopied(false), 2500);
+                }}
+                className="w-full py-2.5 px-3 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm"
+              >
+                {syncLinkCopied ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-amber-300" />
+                    <span>Sync Link Copied! Send to Telegram / WhatsApp</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>Copy Sync Link (for Telegram / WhatsApp)</span>
+                  </>
+                )}
+              </button>
+            </div>
+          )}
+
+          {/* Sign Out / Lock Store */}
+          {onLogout && (
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onLogout();
+                }}
+                className="w-full py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+              >
+                <LogOut className="w-3.5 h-3.5 text-slate-500" />
+                <span>Sign Out / Lock Store (መውጫ)</span>
+              </button>
+            </div>
+          )}
+
+          {/* Reset App Button */}
+          <div className="pt-2 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={onResetData}
+              className="w-full py-2.5 px-3 rounded-xl border border-rose-200 hover:bg-rose-50 text-rose-700 font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Reset SuqSync to Brand New Empty State</span>
+            </button>
+          </div>
+
+        </form>
+
+      </div>
+    </div>
+  );
+}
